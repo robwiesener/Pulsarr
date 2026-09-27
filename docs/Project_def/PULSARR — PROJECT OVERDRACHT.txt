@@ -1,0 +1,1218 @@
+PULSARR — PROJECT OVERDRACHT
+
+Doel van dit document
+---------------------
+
+Dit document is de zelfstandige overdracht van het Pulsarr-project uit een eerdere ontwikkelchat.
+
+Gebruik dit document als technische context voor verdere ontwikkeling van de webapp. Ga ervan uit dat onderstaande keuzes bewust zijn gemaakt en verander bestaande architectuur of functionaliteit niet zonder dat daar expliciet om wordt gevraagd.
+
+==================================================
+1. DOEL VAN PULSARR
+==================================================
+
+Pulsarr is een lokale webapp voor het beheren van een wishlist van boeken en het zoeken, downloaden en volgen van beschikbare boekbestanden.
+
+De belangrijkste workflow is:
+
+1. Gebruiker voegt een boek toe aan de Wishlist.
+2. Het boek krijgt status UNAVAILABLE.
+3. Pulsarr kan via Prowlarr zoeken naar beschikbare resultaten.
+4. Gevonden resultaten verschijnen in Result Management.
+5. Het boek krijgt status FOUND / "Possible Match".
+6. De gebruiker selecteert één of meer resultaten.
+7. Via SABnzbd wordt een download gestart.
+8. Het boek krijgt status DOWNLOADING.
+9. Een achtergrondproces controleert periodiek de status bij SABnzbd.
+10. Zodra SABnzbd klaar is, krijgt het boek status DOWNLOADED.
+11. Het verwijderen van een resultaat uit Result Management mag een reeds gedownload boek NIET terugzetten naar UNAVAILABLE.
+12. Een boek blijft dus DOWNLOADED totdat de gebruiker dit handmatig wijzigt.
+
+Pulsarr is bedoeld als eenvoudige basis voor verdere ontwikkeling. De huidige versie wordt beschouwd als een goede stabiele basis/MVP-startpunt.
+
+
+==================================================
+2. TECHNISCHE STACK
+==================================================
+
+Backend:
+- Python
+- FastAPI
+- Uvicorn
+- SQLModel
+- SQLite
+- Pydantic/configuratie
+- requests voor externe HTTP API's
+- asyncio voor background workers
+
+Frontend:
+- Jinja2 templates
+- HTML
+- Bootstrap
+- Bootstrap Icons
+- eenvoudige JavaScript voor UI-interactie
+
+Externe integraties:
+- Prowlarr
+- SABnzbd
+
+Development:
+- macOS
+- Python 3.14
+- virtual environment:
+  .venv
+
+Applicatie wordt momenteel gestart met:
+
+uvicorn src.main:app --reload
+
+
+==================================================
+3. ARCHITECTUUR
+==================================================
+
+Globale structuur:
+
+Browser
+  ↓
+FastAPI Router
+  ↓
+Service layer
+  ↓
+SQLModel / SQLite
+  ↓
+Externe services:
+  - Prowlarr
+  - SABnzbd
+
+Belangrijke architectuurkeuze:
+
+Routers bevatten HTTP/UI-logica.
+
+Services bevatten database- en businesslogica.
+
+Dus bijvoorbeeld:
+
+wishlist.py
+  -> wishlist_service.py
+
+result_management.py
+  -> downloads_service.py
+
+Externe API-logica hoort in:
+- prowlarr_service.py
+- sabnzbd_service.py
+
+Background-processen horen in:
+- background_service.py
+
+
+==================================================
+4. BELANGRIJKE BESTANDEN
+==================================================
+
+Belangrijke bestanden die in de chat zijn besproken:
+
+src/
+├── main.py
+├── config/
+│   └── config_service.py
+├── db/
+│   └── database.py
+├── models/
+│   ├── book.py
+│   ├── enums.py
+│   └── search_result_record.py
+├── routers/
+│   ├── wishlist.py
+│   ├── result_management.py
+│   └── settings.py
+├── services/
+│   ├── background_service.py
+│   ├── wishlist_service.py
+│   ├── downloads_service.py
+│   ├── prowlarr_service.py
+│   └── sabnzbd_service.py
+└── templates/
+    ├── pulsarr/
+    ├── wishlist/
+    │   ├── index.html
+    │   └── form.html
+    └── result_management/
+        └── index.html
+
+Exacte volledige projectstructuur is in de eerdere chat niet volledig aangeleverd. Gebruik bovenstaande alleen als bekende structuur.
+
+
+==================================================
+5. STATUS ENUMS
+==================================================
+
+src/models/enums.py bevat momenteel:
+
+from enum import Enum
+
+
+class Status(str, Enum):
+    UNAVAILABLE = "Unavailable"
+    FOUND = "Possible Match"
+    DOWNLOADING = "Downloading"
+    DOWNLOADED = "Downloaded"
+
+    @property
+    def badge_class(self) -> str:
+        return {
+            Status.UNAVAILABLE: "status-unavailable",
+            Status.FOUND: "status-found",
+            Status.DOWNLOADING: "status-downloading",
+            Status.DOWNLOADED: "status-downloaded",
+        }[self]
+
+
+class SearchType(str, Enum):
+    BOOK = "BOOK"
+    TITLE = "TITLE"
+    AUTHOR = "AUTHOR"
+
+
+class DownloadStatus(str, Enum):
+    INITIATED = "Initiated"
+    DOWNLOADING = "Downloading"
+    FAILED = "Failed"
+    DOWNLOADED = "Downloaded"
+
+
+Deze enums zijn belangrijk en vormen de centrale bron voor statussen.
+
+Status en DownloadStatus zijn verschillende concepten:
+
+Book.status:
+- UNAVAILABLE
+- FOUND
+- DOWNLOADING
+- DOWNLOADED
+
+SearchResultRecord.download_status:
+- INITIATED
+- DOWNLOADING
+- FAILED
+- DOWNLOADED
+
+
+==================================================
+6. BOOK STATUS GEDRAG
+==================================================
+
+De gewenste status-flow is:
+
+Nieuw boek:
+UNAVAILABLE
+
+Na succesvolle zoekactie:
+FOUND
+
+Na download starten:
+DOWNLOADING
+
+Na SABnzbd completion:
+DOWNLOADED
+
+Belangrijke beslissing:
+
+Als een SearchResultRecord uit Result Management wordt verwijderd, mag Book.status NIET automatisch teruggaan naar UNAVAILABLE wanneer het boek al DOWNLOADED is.
+
+Dit probleem is opgelost door de eerdere logica die bij het verwijderen van SearchResultRecords de Book.status op UNAVAILABLE zette te verwijderen.
+
+De huidige delete-methodes in DownloadsService verwijderen records alleen.
+
+Dat gedrag moet behouden blijven.
+
+
+==================================================
+7. DATABASE / MODELLEN
+==================================================
+
+Er zijn minimaal deze modellen:
+
+Book
+
+SearchResultRecord
+
+Bekende relaties:
+
+SearchResultRecord.book_id -> Book.id
+
+SearchResultRecord bevat onder andere:
+- id
+- book_id
+- guid
+- description
+- download_url
+- size
+- age
+- indexer
+- category
+- search_type
+- download_status
+- sabnzbd_id
+- downloaded (er was eerder code die dit veld gebruikte; controleer de actuele modeldefinitie voordat je het opnieuw gebruikt)
+
+Book bevat onder andere:
+- id
+- title
+- author
+- series
+- series_number
+- status
+
+De precieze volledige modeldefinities zijn niet volledig in deze chat aangeleverd. Niet gokken als een toekomstige wijziging hiervan afhankelijk is; vraag dan om de actuele modelcode.
+
+
+==================================================
+8. PROWLARR
+==================================================
+
+Bestand:
+
+src/services/prowlarr_service.py
+
+Prowlarr API wordt gebruikt via:
+
+/api/v1/system/status
+
+voor connection testing.
+
+Zoeken gebeurt via:
+
+/api/v1/search
+
+Met:
+
+params = {
+    "query": query,
+}
+
+Header:
+
+{
+    "X-Api-Key": settings.prowlarr.api_key,
+}
+
+De service filtert resultaten op Books/EBook categorie:
+
+7020
+
+SearchResult wordt aangemaakt met onder andere:
+
+- guid
+- description = item["title"]
+- download_url
+- size
+- age
+- indexer
+- category
+
+Belangrijk:
+
+De bedoeling is dat de zoekopdracht zowel titel als auteur kan bevatten.
+
+De Wishlist-service heeft daarom:
+
+query = f"{book.title} {book.author}"
+
+De bestaande handmatige zoekfunctionaliteit ondersteunt:
+- titel zoeken
+- auteur zoeken
+- gecombineerde boekzoekactie
+
+SearchType:
+- BOOK
+- TITLE
+- AUTHOR
+
+
+==================================================
+9. WISHLIST
+==================================================
+
+Router:
+
+src/routers/wishlist.py
+
+Belangrijke routes:
+
+GET /
+    toont Wishlist
+
+POST /wishlist/search
+    zoekt voor alle relevante boeken
+
+POST /wishlist/{book_id}/search/title
+    zoekt alleen op titel
+
+POST /wishlist/{book_id}/search/author
+    zoekt alleen op auteur
+
+GET /wishlist/add_book
+    toont add-book formulier
+
+GET /wishlist/{book_id}/edit
+    edit formulier
+
+POST /wishlist/{book_id}/edit
+    wijzigt boek
+
+POST /wishlist/{book_id}/delete
+    verwijdert boek
+
+POST /books
+    maakt nieuw boek
+
+Wishlist-service bevat onder andere:
+
+get_books(session, sort="title", status=None)
+
+Deze gebruikt:
+
+select(Book)
+
+en filtert optioneel op:
+
+Book.status == Status[status]
+
+Sortering:
+- title
+- author + series + series_number + title
+
+De Wishlist UI toont:
+- zoekveld
+- Search knop
+- Add knop
+- Title
+- Author
+- Series
+- Part
+- Status
+- menu per boek
+
+Het boekmenu bevat:
+- Search title
+- Search author
+- Edit
+- Add series
+- Delete
+
+
+==================================================
+10. AUTOMATISCHE WISHLIST SEARCH
+==================================================
+
+Er is een background worker:
+
+wishlist_search_worker()
+
+Deze worker doet bij startup eerst een initiële search.
+
+Dit is bewust zo ontworpen.
+
+De worker meldt bijvoorbeeld:
+
+BACKGROUND SERVICE: Wishlist search worker initial run
+
+Daarna:
+
+wishlist_service.search_books(session)
+
+Daarna wacht de worker de ingestelde interval af.
+
+Configuratie bevat:
+
+settings.background.wishlist_search_interval
+
+De oorspronkelijke configuratie had een minimum van 3600 seconden.
+
+Er was eerder een fout doordat geprobeerd werd deze op 15 seconden te zetten:
+
+Input should be greater than or equal to 3600
+
+Dit minimum is dus bewust onderdeel van de configuratie op dat moment.
+
+De huidige worker doet een initial run en daarna periodieke runs.
+
+
+==================================================
+11. BACKGROUND SERVICE
+==================================================
+
+Bestand:
+
+src/services/background_service.py
+
+Er zijn twee workers:
+
+1. download_status_worker
+2. wishlist_search_worker
+
+Bij startup worden ze gestart met:
+
+asyncio.create_task(...)
+
+De worker voor downloads controleert periodiek:
+
+SearchResultRecord.download_status == DownloadStatus.DOWNLOADING
+
+Daarna wordt voor elk record:
+
+downloads_service.check_download_status(
+    session=session,
+    record_id=record.id,
+)
+
+aangeroepen.
+
+De download-status interval is momenteel getest op 15 seconden.
+
+Belangrijk:
+De background worker werkt inmiddels correct.
+
+
+==================================================
+12. DOWNLOAD STATUS FLOW
+==================================================
+
+Dit was een belangrijk debugpunt en is inmiddels opgelost.
+
+SABnzbd retourneert strings zoals:
+
+"DOWNLOADED"
+
+terwijl DownloadStatus.DOWNLOADED een Enum is met value:
+
+"Downloaded"
+
+Daarom moet je nooit zonder controle aannemen dat de status-string direct gelijk is aan de enum.
+
+De uiteindelijke SABnzbd-service vertaalt SABnzbd-statussen naar DownloadStatus enumwaarden.
+
+Belangrijk gedrag:
+
+SABnzbd:
+- queue actief -> DownloadStatus.DOWNLOADING
+- history "Extracting" -> DownloadStatus.DOWNLOADING
+- history "Completed" -> DownloadStatus.DOWNLOADED
+- history "Failed" / "Failed/Retry" -> DownloadStatus.FAILED
+
+Bij DownloadStatus.DOWNLOADED wordt:
+
+book.status = Status.DOWNLOADED
+
+gezet.
+
+Dit werkt inmiddels correct.
+
+
+==================================================
+13. SABNZBD SERVICE
+==================================================
+
+Bestand:
+
+src/services/sabnzbd_service.py
+
+Belangrijke API's:
+
+mode=version
+    connection test
+
+mode=addurl
+    download starten
+
+mode=queue
+    actieve downloads controleren
+
+mode=history
+    afgeronde/failed downloads controleren
+
+add_url(download_url)
+
+geeft terug:
+
+(bool, message, nzo_id)
+
+De nzo_id wordt opgeslagen in:
+
+SearchResultRecord.sabnzbd_id
+
+Dit is belangrijk omdat later op basis van de SABnzbd nzo_id de status wordt gecontroleerd.
+
+
+==================================================
+14. SABNZBD STATUSVERTALING
+==================================================
+
+De huidige get_download_status-logica werkt als volgt:
+
+Eerst queue controleren.
+
+Als nzo_id daar staat:
+    DownloadStatus.DOWNLOADING
+
+Als niet in queue:
+    history controleren.
+
+History:
+"Extracting"
+    -> DownloadStatus.DOWNLOADING
+
+"Completed"
+    -> DownloadStatus.DOWNLOADED
+
+"Failed"
+"Failed/Retry"
+    -> DownloadStatus.FAILED
+
+Dit is de correcte huidige architectuur.
+
+Een belangrijk probleem dat eerder bestond:
+
+SABnzbd history kon "Extracting" teruggeven.
+
+Dit werd eerst als fout behandeld.
+
+Dat is aangepast.
+
+"Extracting" is onderdeel van het normale downloadproces en moet als DOWNLOADING worden behandeld.
+
+
+==================================================
+15. DOWNLOADS SERVICE
+==================================================
+
+Bestand:
+
+src/services/downloads_service.py
+
+Belangrijke functies:
+
+get_results(session)
+
+search_unavailable_books(session)
+
+delete_result(session, record_id)
+
+delete_results(session, record_ids)
+
+download_results(session, record_ids)
+
+check_download_status(session, record_id)
+
+download_result(session, record_id)
+
+
+--------------------------------------------------
+get_results
+--------------------------------------------------
+
+Haalt SearchResultRecord + Book op:
+
+select(SearchResultRecord, Book)
+.join(Book, SearchResultRecord.book_id == Book.id)
+
+De Result Management template ontvangt:
+
+results
+
+als tuples:
+
+(record, book)
+
+
+--------------------------------------------------
+download_results
+--------------------------------------------------
+
+Voor geselecteerde SearchResultRecords:
+
+sabnzbd_service.add_url(record.download_url)
+
+Bij succes:
+
+record.sabnzbd_id = nzo_id
+record.download_status = DownloadStatus.DOWNLOADING
+
+Als het record SearchType.BOOK is en book_id bestaat:
+
+book.status = Status.DOWNLOADING
+
+Daarna worden record en boek opgeslagen.
+
+
+--------------------------------------------------
+check_download_status
+--------------------------------------------------
+
+Haalt record op.
+
+Controleert sabnzbd_id.
+
+Vraagt:
+
+sabnzbd_service.get_download_status(record.sabnzbd_id)
+
+op.
+
+Bij failure:
+    record.download_status = DownloadStatus.FAILED
+
+Bij:
+
+status == DownloadStatus.DOWNLOADED
+
+wordt:
+
+book.status = Status.DOWNLOADED
+
+gezet.
+
+Daarna wordt het record opgeslagen.
+
+Dit werkt momenteel correct.
+
+
+==================================================
+16. RESULT MANAGEMENT
+==================================================
+
+Router:
+
+src/routers/result_management.py
+
+Belangrijke routes:
+
+GET /result-management
+
+POST /result-management/{record_id}/delete
+
+POST /result-management/delete
+
+POST /result-management/download
+
+POST /result-management/{record_id}/download
+
+GET /result-management/test-status/{record_id}
+
+
+De Result Management pagina toont momenteel resultaten uit:
+
+downloads_service.get_results()
+
+
+==================================================
+17. RESULT MANAGEMENT UI
+==================================================
+
+Bestand:
+
+src/templates/result_management/index.html
+
+De huidige UI bevat:
+
+- Download knop bovenaan
+- Delete knop bovenaan
+- tabel
+- checkbox per resultaat
+- select-all checkbox
+- Title
+- Author
+- Spot title
+- Size
+- Category
+- menu per resultaat
+
+JavaScript:
+- select all
+- indeterminate state
+- Download button enabled/disabled
+- Delete button enabled/disabled
+- bulk delete modal
+- individuele delete modal
+
+
+==================================================
+18. RESULT MANAGEMENT UI-WIJZIGINGEN DIE NOG MOETEN GEBEUREN
+==================================================
+
+Voor de MVP zijn drie concrete UI-taken geïdentificeerd:
+
+1. Size in Result Management moet als MB worden weergegeven in plaats van bytes.
+
+2. Het pull-down/menu per resultaat en de bijbehorende functies moeten worden verwijderd.
+
+3. Status moet worden toegevoegd aan Result Management.
+
+
+--------------------------------------------------
+18.1 SIZE
+--------------------------------------------------
+
+record.size is momenteel in bytes.
+
+De UI toont nu:
+
+<td>{{ record.size }}</td>
+
+Dit moet worden aangepast naar een gebruikersvriendelijke MB-weergave.
+
+Voorkeur:
+business/UI formatting niet direct in het databaseveld veranderen.
+
+Dus bijvoorbeeld:
+- formatteringsfunctie
+- of formatting in template/service
+
+Gebruik bij voorkeur een duidelijke weergave zoals:
+
+12.4 MB
+
+De exacte afronding kan later worden bepaald.
+
+
+--------------------------------------------------
+18.2 RESULT-MANAGEMENT MENU VERWIJDEREN
+--------------------------------------------------
+
+Het menu met drie puntjes per record moet verdwijnen.
+
+Daarmee verdwijnen ook de individuele:
+- Download
+- Delete
+
+acties via dit menu.
+
+De bulk:
+- Download
+- Delete
+
+knoppen bovenaan blijven bestaan.
+
+De modals voor bulk delete blijven bestaan.
+
+De individuele delete modal kan waarschijnlijk ook verwijderd worden, omdat die alleen door het individuele menu werd gebruikt.
+
+Ook de bijbehorende JavaScript-logica voor deleteDownloadModal kan dan worden verwijderd als die nog aanwezig is.
+
+Controleer na wijziging of er geen dode HTML/JS meer overblijft.
+
+
+--------------------------------------------------
+18.3 STATUS TOEVOEGEN
+--------------------------------------------------
+
+Result Management moet een Status-kolom krijgen.
+
+Er zijn twee relevante statussen:
+
+Book.status:
+- Possible Match
+- Downloading
+- Downloaded
+- etc.
+
+SearchResultRecord.download_status:
+- Initiated
+- Downloading
+- Failed
+- Downloaded
+
+Voor Result Management is waarschijnlijk de meest relevante status de downloadstatus van het individuele resultaat.
+
+De gebruiker heeft expliciet aangegeven dat hij in Result Management wil kunnen zien wanneer een geselecteerd resultaat:
+- Possible Match
+- Downloading
+- Downloaded
+- Failed
+
+is.
+
+Let goed op het onderscheid tussen:
+Book.status
+en
+SearchResultRecord.download_status.
+
+Controleer de actuele gewenste UI voordat je een van beide zomaar kiest. Waarschijnlijk moet Result Management de record/downloadstatus tonen, omdat dat per resultaat verschilt.
+
+
+==================================================
+19. HUIDIGE RESULT MANAGEMENT HTML
+==================================================
+
+Relevante huidige tabel:
+
+<thead>
+<tr>
+    <th style="width:50px;">
+        checkbox
+    </th>
+    <th>Title</th>
+    <th>Author</th>
+    <th>Spot title</th>
+    <th>Size</th>
+    <th>Category</th>
+    <th></th>
+</tr>
+</thead>
+
+Per record:
+
+<td>{{ book.title }}</td>
+<td>{{ book.author }}</td>
+<td>{{ record.description }}</td>
+<td>{{ record.size }}</td>
+<td>{{ record.category }}</td>
+
+Daar moet dus een Status-kolom bij.
+
+De laatste lege kolom kan verdwijnen zodra het individuele dropdown-menu is verwijderd.
+
+
+==================================================
+20. BELANGRIJKE UI/UX BESLISSINGEN
+==================================================
+
+De UI moet eenvoudig en functioneel blijven.
+
+Gebruik:
+- Bootstrap
+- Bootstrap Icons
+- bestaande status-badge classes
+- bestaande layout
+- bestaande page-header/card/table structuur
+
+Niet onnodig herontwerpen.
+
+Wishlist heeft status badges via:
+
+{{ book.status.badge_class }}
+
+en:
+
+{{ book.status.value }}
+
+Result Management zou dezelfde bestaande badge-stijl moeten hergebruiken waar mogelijk.
+
+
+==================================================
+21. BELANGRIJKE PROBLEMEN DIE AL OPGELOST ZIJN
+==================================================
+
+De volgende problemen zijn opgelost:
+
+1. BackgroundService had download_status_worker verkeerd genest in de code.
+   Dit gaf:
+   AttributeError:
+   'BackgroundService' object has no attribute 'download_status_worker'
+
+2. Wishlist background worker werd correct toegevoegd.
+
+3. Automatische Wishlist search bij startup is geïmplementeerd.
+
+4. Download status worker werkt.
+
+5. SABnzbd nzo_id wordt opgeslagen.
+
+6. SABnzbd queue/history wordt gecontroleerd.
+
+7. "Extracting" wordt als DOWNLOADING behandeld.
+
+8. "Completed" wordt als DOWNLOADED behandeld.
+
+9. Enum/string mismatch tussen SABnzbd-status en DownloadStatus is opgelost door statusvertaling.
+
+10. Book.status gaat correct:
+    DOWNLOADING -> DOWNLOADED
+
+11. Het verwijderen van SearchResultRecords zet een gedownload boek niet meer terug naar UNAVAILABLE.
+
+12. VS Code gaf:
+    Import "sqlmodel" could not be resolved
+
+    Dit is gecontroleerd met het pad:
+
+    /Volumes/Data/01.Temp/pulsarr/.venv/lib/python3.14/site-packages/sqlmodel/__init__.py
+
+    Dit bleek correct. Het probleem was dus waarschijnlijk VS Code/Python interpreter configuration en niet de installatie van SQLModel.
+
+
+==================================================
+22. GIT STATUS
+==================================================
+
+De gebruiker heeft inmiddels commits gemaakt.
+
+De huidige versie wordt beschouwd als een goede basis voor verdere ontwikkeling.
+
+Ga ervan uit dat de huidige code die de gebruiker lokaal heeft de bron van waarheid is.
+
+Als een bestand opnieuw nodig is:
+vraag de gebruiker om de actuele versie te sturen als de inhoud niet in deze overdracht staat.
+
+Veronderstel niet dat oudere snippets nog exact overeenkomen met de huidige code.
+
+
+==================================================
+23. WAT NIET ZOMAAR VERANDEREN
+==================================================
+
+Niet zonder expliciete opdracht veranderen:
+
+- FastAPI + service-layer architectuur
+- SQLModel
+- SQLite
+- Prowlarr-integratie
+- SABnzbd-integratie
+- background workers
+- status-flow
+- Book.status betekenis
+- SearchResultRecord.download_status betekenis
+- het feit dat verwijderen van Result Management records een DOWNLOADED boek niet terugzet naar UNAVAILABLE
+- bestaande Bootstrap UI/layout
+- bestaande Wishlist-functionaliteit
+- bestaande SearchType enum
+- bestaande API-structuur
+
+Ook geen grote refactor uitvoeren wanneer een kleine gerichte wijziging voldoende is.
+
+
+==================================================
+24. BELANGRIJKE AANNAMES
+==================================================
+
+- Prowlarr levert boekzoekresultaten.
+- SABnzbd is verantwoordelijk voor daadwerkelijke downloads.
+- Pulsarr hoeft niet zelf te bepalen of een bestand fysiek op disk staat om de status te bepalen; SABnzbd is de primaire bron voor download completion.
+- SearchResultRecord vertegenwoordigt een zoekresultaat.
+- Book vertegenwoordigt het daadwerkelijke wishlist-item.
+- Eén Book kan meerdere SearchResultRecords hebben.
+- Een gedownload boek moet zijn DOWNLOADED-status behouden, ook als zoekresultaten later worden verwijderd.
+- Downloadstatus hoort bij SearchResultRecord.
+- Boekstatus hoort bij Book.
+
+
+==================================================
+25. HUIDIGE MVP-STATUS
+==================================================
+
+Functioneel aanwezig:
+
+[OK] Boeken toevoegen
+[OK] Boeken wijzigen
+[OK] Boeken verwijderen
+[OK] Wishlist tonen
+[OK] Sorteren op titel
+[OK] Sorteren op auteur
+[OK] Filteren op status
+[OK] Handmatige zoekactie
+[OK] Zoeken op titel
+[OK] Zoeken op auteur
+[OK] Gecombineerd zoeken
+[OK] Prowlarr-integratie
+[OK] SearchResultRecord opslaan
+[OK] Result Management
+[OK] Bulk selecteren
+[OK] Bulk downloaden
+[OK] Bulk verwijderen
+[OK] SABnzbd-integratie
+[OK] Downloadstatus opslaan
+[OK] Background download status worker
+[OK] Background wishlist search worker
+[OK] Automatische wishlist search bij startup
+[OK] Status DOWNLOADING
+[OK] Status DOWNLOADED
+[OK] SABnzbd Extracting behandelen als downloading
+[OK] SABnzbd Completed behandelen als downloaded
+[OK] Gedownload boek blijft downloaded na verwijderen van zoekresultaat
+
+Nog te doen voor de genoemde MVP-afwerking:
+
+[TODO] Size tonen als MB
+[TODO] Individueel Result Management dropdown-menu verwijderen
+[TODO] Individuele menu-acties verwijderen
+[TODO] Overbodige individuele delete modal/JS verwijderen
+[TODO] Status-kolom toevoegen aan Result Management
+
+
+==================================================
+26. AANBEVOLEN EERSTE VOLGENDE STAPPEN
+==================================================
+
+Stap 1:
+Pas Result Management template aan.
+
+Verwijder:
+- laatste lege tabelkolom
+- dropdown-menu per record
+- individuele Download actie
+- individuele Delete actie
+- individuele delete modal
+- bijbehorende JavaScript
+
+Laat staan:
+- checkboxen
+- select all
+- bulk Download
+- bulk Delete
+- bulk Delete modal
+
+
+Stap 2:
+Voeg Status-kolom toe.
+
+Waarschijnlijk:
+
+<th>Status</th>
+
+en per record bijvoorbeeld:
+
+<span class="status-badge {{ record.download_status.badge_class }}">
+    {{ record.download_status.value }}
+</span>
+
+LET OP:
+DownloadStatus heeft momenteel nog geen badge_class property zoals Status.
+
+Dus eerst controleren hoe status badges in de huidige CSS/template zijn opgezet.
+
+Als nodig kan DownloadStatus een badge_class property krijgen, maar doe dat alleen als dit consistent is met de bestaande UI.
+
+
+Stap 3:
+Test complete flow:
+
+1. Add book
+2. Check UNAVAILABLE
+3. Search
+4. Check Possible Match
+5. Select result
+6. Download
+7. Check DOWNLOADING
+8. Wait for background worker
+9. Check SABnzbd completion
+10. Check DOWNLOADED in Wishlist
+11. Check DOWNLOADED in Result Management
+12. Delete SearchResultRecord
+13. Confirm Wishlist blijft DOWNLOADED
+
+
+==================================================
+27. DEBUGGING-AFSPRAKEN
+==================================================
+
+Tijdens debugging zijn uitgebreide print-statements gebruikt.
+
+Voorbeeld:
+
+DEBUG DOWNLOAD STATUS:
+DEBUG DOWNLOAD ENUM:
+DEBUG BOOK:
+DEBUG BOOK STATUS:
+
+Nu de functionaliteit werkt mogen tijdelijke debug prints worden verwijderd als ze niet meer nodig zijn.
+
+Maar eerst alleen verwijderen als zeker is dat ze geen nuttige operationele logging zijn.
+
+De applicatie gebruikt momenteel vrij duidelijke terminal logging zoals:
+
+BACKGROUND SERVICE: ...
+DOWNLOADS SERVICE: ...
+SABnzbd ...
+WISHLIST SERVICE: ...
+
+Behoud nuttige logging.
+
+
+==================================================
+28. BELANGRIJKSTE HUIDIGE CODEGEDACHTE
+==================================================
+
+De status van een boek wordt niet afgeleid uit het bestaan van SearchResultRecords.
+
+Dat was eerder een fout.
+
+Correct:
+
+SearchResultRecord verwijderen:
+    alleen record verwijderen
+
+Book.status:
+    niet wijzigen als het boek al DOWNLOADED is.
+
+De status van een boek wordt door de business flow bepaald:
+
+UNAVAILABLE
+    ↓
+FOUND
+    ↓
+DOWNLOADING
+    ↓
+DOWNLOADED
+
+Niet:
+
+FOUND
+    ↓
+record verwijderen
+    ↓
+UNAVAILABLE
+
+Een boek dat eenmaal DOWNLOADED is moet DOWNLOADED blijven totdat de gebruiker het zelf wijzigt.
+
+
+==================================================
+29. VERVOLGONTWIKKELING
+==================================================
+
+Na het afronden van de drie Result Management UI-taken is de MVP-basis in principe geschikt voor verdere ontwikkeling.
+
+Toekomstige ontwikkeling kan bijvoorbeeld bestaan uit:
+- betere zoekresultaatselectie
+- betere matching op titel/auteur
+- verdere Prowlarr filtering
+- betere downloadmetadata
+- downloadbestandsbeheer
+- betere statusweergave
+- instellingen
+- foutafhandeling
+- logging
+- verdere UI/UX verbeteringen
+
+Maar deze zaken zijn nog niet uitgewerkt en mogen niet als bestaande functionaliteit worden aangenomen.
+
+
+==================================================
+30. WERKWIJZE VOOR DE NIEUWE CHATGPT-CHAT
+==================================================
+
+Behandel deze overdracht als context.
+
+Als de gebruiker code aanlevert:
+- analyseer eerst de actuele code
+- werk met de actuele code als bron van waarheid
+- geef concrete wijzigingen
+- benoem exact welk bestand aangepast moet worden
+- geef bij voorkeur complete codeblokken voor kleine wijzigingen
+- vertel duidelijk wat verwijderd, toegevoegd of vervangen moet worden
+- voorkom onnodige refactors
+
+Als informatie ontbreekt:
+vraag om het relevante actuele bestand.
+
+Veronderstel niet dat oudere code uit deze overdracht nog exact gelijk is aan de lokale versie.
+
+Werk stapsgewijs en test na iedere logische wijziging.
+
+De gebruiker wil vooral praktische, concrete begeleiding bij het verder bouwen van Pulsarr.
+
+
+==================================================
+EINDE PROJECTOVERDRACHT
+==================================================

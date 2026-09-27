@@ -1,0 +1,614 @@
+{% extends "pulsarr/index.html" %}
+
+{% block title %}
+Pulsarr
+{% endblock %}
+
+{% block content %}
+
+<div class="page-content">
+
+    <div class="page-header">
+
+        <input
+            type="search"
+            id="wishlistSearch"
+            class="search-box"
+            placeholder="Filter..."
+            autocomplete="off">
+
+        <div class="page-actions">
+
+            <form action="/wishlist/search" method="post" class="d-inline">
+
+                <button
+                    type="submit"
+                    class="btn btn-secondary">
+
+                    <i class="bi bi-arrow-repeat"></i>
+                    Search
+
+                </button>
+
+            </form>
+
+            <a
+                href="/wishlist/add_book"
+                class="btn btn-primary">
+
+                <i class="bi bi-plus-lg"></i>
+                Add
+
+            </a>
+
+        </div>
+
+    </div>
+
+    <div class="page-content-body">
+
+        <div class="wishlist-table">
+
+            <div class="wishlist-grid">
+
+                {% if books %}
+
+                    {% for book in books %}
+
+                    <article
+                        class="book-tile"
+                        data-search="{{ book.title }} {{ book.author }} {{ book.status.value }}">
+
+                        <div class="book-tile-status">
+
+                            <span class="status-badge {{ book.status.badge_class }}">
+                                {{ book.status.value }}
+                            </span>
+
+                        </div>
+
+                        <div class="book-tile-header">
+
+                            <div class="book-tile-title">
+
+                                <i class="bi bi-book text-success"></i>
+
+                                <span>
+                                    {{ book.title }}
+                                </span>
+
+                            </div>
+
+                            <button
+                                type="button"
+                                class="btn-icon book-menu-button"
+                                aria-label="Open book menu"
+                                aria-expanded="false"
+                                data-book-id="{{ book.id }}"
+                                data-book-title="{{ book.title }}"
+                                data-book-author="{{ book.author }}">
+
+                                <i class="bi bi-three-dots-vertical"></i>
+
+                            </button>
+
+                        </div>
+
+                        <div class="book-tile-author">
+                            {{ book.author }}
+                        </div>
+
+                    </article>
+
+                    {% endfor %}
+
+                {% else %}
+
+                    <div class="empty-state wishlist-empty-state">
+
+                        <i class="bi bi-book fs-1 d-block mb-3"></i>
+
+                        <strong>No books yet</strong>
+
+                        <div class="mt-2">
+
+                            Click the <strong>+ Add</strong> button to enter your first book.
+
+                        </div>
+
+                    </div>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ==========================================================
+     Book action menu
+
+     This menu deliberately lives OUTSIDE the scrollable
+     wishlist table so it cannot be clipped by overflow.
+     ========================================================== -->
+
+<div
+    id="bookActionMenu"
+    class="dropdown-menu book-action-menu">
+
+<form
+    id="bookSearchBookForm"
+    method="post">
+
+    <button
+        type="submit"
+        class="dropdown-item">
+
+        <i class="bi bi-search me-2"></i>
+        Search book
+
+    </button>
+
+</form>
+
+<div class="dropdown-divider"></div>
+
+<form
+    id="bookSearchTitleForm"
+    method="post">
+
+    <button
+        type="submit"
+        class="dropdown-item">
+
+        <i class="bi bi-search me-2"></i>
+        Search title
+
+    </button>
+
+</form>
+
+<form
+    id="bookSearchAuthorForm"
+    method="post">
+
+    <button
+        type="submit"
+        class="dropdown-item">
+
+        <i class="bi bi-search me-2"></i>
+        Search author
+
+    </button>
+
+</form>
+
+<div class="dropdown-divider"></div>
+
+<a
+    id="addBookByAuthorLink"
+    class="dropdown-item"
+    href="#">
+
+    <i class="bi bi-plus-circle me-2"></i>
+    same author
+
+</a>
+
+<div class="dropdown-divider"></div>
+
+<a
+    id="bookEditLink"
+    class="dropdown-item"
+    href="#">
+
+    <i class="bi bi-pencil me-2"></i>
+    Edit
+
+</a>
+
+<button
+    type="button"
+    id="bookDeleteButton"
+    class="dropdown-item text-danger">
+
+    <i class="bi bi-trash me-2"></i>
+    Delete
+
+</button>
+
+</div>
+
+<!-- ==========================================================
+     Delete confirmation
+     ========================================================== -->
+
+<div
+    class="modal fade"
+    id="deleteModal"
+    tabindex="-1"
+    aria-hidden="true">
+
+<div class="modal-dialog modal-dialog-centered">
+
+    <div class="modal-content">
+
+        <div class="modal-header">
+
+            <h5 class="modal-title">
+                Delete book
+            </h5>
+
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal">
+            </button>
+
+        </div>
+
+
+        <div class="modal-body">
+
+            Are you sure you want to delete
+
+            <strong id="deleteBookTitle"></strong>?
+
+        </div>
+
+
+        <div class="modal-footer">
+
+            <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal">
+
+                Cancel
+
+            </button>
+
+
+            <form
+                id="deleteForm"
+                method="post">
+
+                <button
+                    type="submit"
+                    class="btn btn-danger">
+
+                    Delete
+
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+
+<script>
+
+/* ==========================================================
+   Book action menu
+   ========================================================== */
+
+const bookActionMenu =
+    document.getElementById("bookActionMenu");
+
+const bookMenuButtons =
+    document.querySelectorAll(".book-menu-button");
+
+const bookSearchBookForm =
+    document.getElementById("bookSearchBookForm");
+
+const bookSearchTitleForm =
+    document.getElementById("bookSearchTitleForm");
+
+const bookSearchAuthorForm =
+    document.getElementById("bookSearchAuthorForm");
+
+const addBookByAuthorLink =
+    document.getElementById("addBookByAuthorLink");
+
+const bookEditLink =
+    document.getElementById("bookEditLink");
+
+const bookDeleteButton =
+    document.getElementById("bookDeleteButton");
+
+let activeBookButton = null;
+
+
+
+/* ==========================================================
+   Wishlist live search
+   ========================================================== */
+
+const wishlistSearch =
+    document.getElementById("wishlistSearch");
+
+const bookTiles =
+    document.querySelectorAll(".book-tile");
+
+
+wishlistSearch.addEventListener(
+    "input",
+    function() {
+
+        const searchTerm =
+            this.value
+                .trim()
+                .toLowerCase();
+
+
+        bookTiles.forEach(function(tile) {
+
+            const searchableText =
+                tile.dataset.search.toLowerCase();
+
+
+            const matches =
+                searchableText.includes(searchTerm);
+
+
+            tile.style.display =
+                matches ? "" : "none";
+
+        });
+
+    }
+);
+
+/* ---------- Close menu ---------- */
+
+function closeBookActionMenu() {
+
+    bookActionMenu.classList.remove("show");
+
+    if (activeBookButton) {
+
+        activeBookButton.setAttribute(
+            "aria-expanded",
+            "false"
+        );
+
+    }
+
+    activeBookButton = null;
+}
+
+
+/* ---------- Open menu ---------- */
+
+function openBookActionMenu(button) {
+
+    if (
+        activeBookButton === button &&
+        bookActionMenu.classList.contains("show")
+    ) {
+
+        closeBookActionMenu();
+
+        return;
+    }
+
+
+    const bookId =
+        button.dataset.bookId;
+
+
+    activeBookButton = button;
+
+
+    /* ---------- Set URLs ---------- */
+
+    bookSearchTitleForm.action =
+        `/wishlist/${bookId}/search/title`;
+
+    bookSearchAuthorForm.action =
+        `/wishlist/${bookId}/search/author`;
+
+    bookSearchBookForm.action =
+        `/wishlist/${bookId}/search/book`;
+
+    bookEditLink.href =
+        `/wishlist/${bookId}/edit`;
+
+    addBookByAuthorLink.href =
+        `/wishlist/add_book?author=${encodeURIComponent(
+            button.dataset.bookAuthor
+        )}`;
+
+
+
+    /* ---------- Delete ---------- */
+
+    bookDeleteButton.dataset.bookTitle =
+        button.dataset.bookTitle;
+
+    bookDeleteButton.dataset.deleteUrl =
+        `/wishlist/${bookId}/delete`;
+
+
+    /* ---------- Position menu ---------- */
+
+    bookActionMenu.classList.add("show");
+
+    button.setAttribute(
+        "aria-expanded",
+        "true"
+    );
+
+
+    const buttonRect =
+        button.getBoundingClientRect();
+
+    const menuRect =
+        bookActionMenu.getBoundingClientRect();
+
+    const margin = 8;
+
+
+    let left =
+        buttonRect.right - menuRect.width;
+
+    let top =
+        buttonRect.bottom + margin;
+
+
+    /*
+     * If there is not enough room below the button,
+     * place the menu above it.
+     */
+
+    if (
+        top + menuRect.height >
+        window.innerHeight - margin
+    ) {
+
+        top =
+            buttonRect.top -
+            menuRect.height -
+            margin;
+
+    }
+
+
+    /*
+     * Keep the menu inside the viewport horizontally.
+     */
+
+    if (left < margin) {
+
+        left = margin;
+
+    }
+
+    if (
+        left + menuRect.width >
+        window.innerWidth - margin
+    ) {
+
+        left =
+            window.innerWidth -
+            menuRect.width -
+            margin;
+
+    }
+
+
+    bookActionMenu.style.left =
+        `${left}px`;
+
+    bookActionMenu.style.top =
+        `${top}px`;
+
+}
+
+
+bookMenuButtons.forEach(function(button) {
+
+    button.addEventListener(
+        "click",
+        function(event) {
+
+            event.stopPropagation();
+
+            openBookActionMenu(button);
+
+        }
+    );
+
+});
+
+
+/* ---------- Close when clicking elsewhere ---------- */
+
+document.addEventListener(
+    "click",
+    function(event) {
+
+        if (
+            !bookActionMenu.contains(event.target) &&
+            !event.target.closest(".book-menu-button")
+        ) {
+
+            closeBookActionMenu();
+
+        }
+
+    }
+);
+
+
+/* ---------- Close with Escape ---------- */
+
+document.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (event.key === "Escape") {
+
+            closeBookActionMenu();
+
+        }
+
+    }
+);
+
+
+/* ---------- Close when scrolling ---------- */
+
+window.addEventListener(
+    "scroll",
+    closeBookActionMenu,
+    true
+);
+
+
+/* ==========================================================
+   Delete confirmation
+   ========================================================== */
+
+bookDeleteButton.addEventListener(
+    "click",
+    function() {
+
+        document.getElementById(
+            "deleteBookTitle"
+        ).textContent =
+            this.dataset.bookTitle;
+
+        document.getElementById(
+            "deleteForm"
+        ).action =
+            this.dataset.deleteUrl;
+
+
+        closeBookActionMenu();
+
+
+        const modalElement =
+            document.getElementById("deleteModal");
+
+        const modal =
+            bootstrap.Modal.getOrCreateInstance(
+                modalElement
+            );
+
+        modal.show();
+
+    }
+);
+
+</script>
+
+{% endblock %}

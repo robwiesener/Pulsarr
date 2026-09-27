@@ -1,0 +1,89 @@
+{% extends "pulsarr/index.html" %}
+
+{% block title %}
+Add Book - Pulsarr
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div class="page-title">
+        <h1>{{ page_title }}</h1>
+    </div>
+
+</div>
+
+<div class="card">
+
+    <div class="card-body">
+
+        <form action="{{ '/wishlist/' ~ book.id ~ '/edit' if book else '/books' }}" method="post">
+
+            <div class="mb-4">
+
+                <label class="form-label">Title</label>
+
+                <input
+                    type="text"
+                    name="title"
+                    value="{{ book.title if book else '' }}"
+                    class="form-control"
+                    required>
+
+            </div>
+
+            <div class="mb-4">
+
+                <label class="form-label">Author</label>
+
+                <input
+                    type="text"
+                    name="author"
+                    value="{{ book.author if book else author }}"
+                    class="form-control"
+                    required>
+
+            </div>
+
+            <div class="mb-4">
+
+                <label class="form-label">Status</label>
+
+                <select name="status" class="form-select">
+
+                    {% for status in statuses %}
+
+                        <option
+                            value="{{ status.name }}"
+                            {% if book and book.status == status %}selected{% endif %}>
+
+                            {{ status.value }}
+
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-6">
+
+                <a href="/" class="btn btn-secondary">
+                    Cancel
+                </a>
+
+                <button type="submit" class="btn btn-primary">
+                    Save
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Database
+data/*.db
+config/*.db
+
+# Configuration
+config/config.json
+
+# Docker local test data
+docker-test/
+# Local Pulsarr library
+Library/
+
+# Local Pulsarr library
+Library/

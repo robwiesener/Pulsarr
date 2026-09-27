@@ -1,0 +1,428 @@
+{% extends "pulsarr/index.html" %}
+
+{% block title %}
+Result Management
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <input
+        type="search"
+        id="resultSearch"
+        class="search-box"
+        placeholder="Search results..."
+        autocomplete="off">
+
+    <div class="page-actions">
+
+        <button
+            type="submit"
+            form="resultsForm"
+            formaction="/result-management/download"
+            class="btn btn-primary"
+            id="downloadButton"
+            disabled>
+
+            <i class="bi bi-download"></i>
+            Download
+
+        </button>
+
+        <button
+            type="button"
+            class="btn btn-danger"
+            id="deleteButton"
+            disabled
+            data-bs-toggle="modal"
+            data-bs-target="#bulkDeleteModal">
+
+            <i class="bi bi-trash"></i>
+            Delete
+
+        </button>
+
+    </div>
+
+</div>
+
+<form
+    id="resultsForm"
+    method="post">
+
+    <div class="results-grid">
+
+        {% for record in results %}
+
+        <div
+            class="result-tile"
+            data-search="
+                {{ record.download_status.value }}
+                {{ record.search_title or '' }}
+                {{ record.search_author or '' }}
+                {{ record.description or '' }}
+            ">
+
+            <div class="result-tile-status">
+
+                <label class="result-select">
+
+                    <input
+                        type="checkbox"
+                        name="record_ids"
+                        value="{{ record.id }}"
+                        class="form-check-input result-checkbox">
+
+                </label>
+
+                <span class="status-badge {{ record.download_status.badge_class }}">
+                    {{ record.download_status.value }}
+                </span>
+
+                <span class="result-tile-size">
+                    {{ "%.2f"|format(record.size / (1024 * 1024)) }} MB
+                </span>
+
+            </div>
+
+            <div class="result-tile-search">
+
+                <i class="bi bi-book"></i>
+
+                <span>
+
+                    {% if record.search_type.value == "TITLE" %}
+
+                        {{ record.search_title or "" }}
+
+                    {% elif record.search_type.value == "AUTHOR" %}
+
+                        {{ record.search_author or "" }}
+
+                    {% else %}
+
+                        {% if record.search_title and record.search_author %}
+
+                            {{ record.search_author }} - {{ record.search_title }}
+
+                        {% elif record.search_title %}
+
+                            {{ record.search_title }}
+
+                        {% elif record.search_author %}
+
+                            {{ record.search_author }}
+
+                        {% endif %}
+
+                    {% endif %}
+
+                </span>
+
+            </div>
+
+            <div
+                class="result-tile-found result-text-clickable"
+                data-result-text="{{ record.description or '' }}">
+
+                <i class="bi bi-search"></i>
+
+                <span>
+                    {{ record.description }}
+                </span>
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</form>
+
+
+<!-- Bulk delete confirmation -->
+
+<div
+    class="modal fade"
+    id="bulkDeleteModal"
+    tabindex="-1"
+    aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Delete results
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+                Are you sure you want to delete
+
+                <strong id="bulkDeleteCount"></strong>
+
+                results?
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+
+                    Cancel
+
+                </button>
+
+
+                <button
+                    type="submit"
+                    form="resultsForm"
+                    formaction="/result-management/delete"
+                    class="btn btn-danger">
+
+                    <i class="bi bi-trash me-2"></i>
+
+                    Delete
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Full result text -->
+
+<div
+    class="modal fade"
+    id="resultTextModal"
+    tabindex="-1"
+    aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Spot title
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal">
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div id="resultTextContent"></div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+
+const selectAll = document.getElementById("selectAll");
+const checkboxes = document.querySelectorAll(".result-checkbox");
+
+const downloadButton = document.getElementById("downloadButton");
+const deleteButton = document.getElementById("deleteButton");
+
+
+function updateButtons() {
+
+    const selected = document.querySelectorAll(
+        ".result-checkbox:checked"
+    );
+
+    const hasSelection = selected.length > 0;
+
+    downloadButton.disabled = !hasSelection;
+    deleteButton.disabled = !hasSelection;
+
+
+    if (selected.length === 0) {
+
+        if (selectAll) {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+        }
+
+    }
+
+    else if (selectAll && selected.length === checkboxes.length) {
+
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+
+    }
+
+    else if (selectAll) {
+
+        selectAll.checked = false;
+        selectAll.indeterminate = true;
+
+    }
+
+}
+
+
+if (selectAll) {
+
+    selectAll.addEventListener("change", function () {
+
+        checkboxes.forEach(function (checkbox) {
+
+            checkbox.checked = selectAll.checked;
+
+        });
+
+        updateButtons();
+
+    });
+
+}
+
+
+checkboxes.forEach(function (checkbox) {
+
+    checkbox.addEventListener("change", updateButtons);
+
+});
+
+
+updateButtons();
+
+
+const bulkDeleteModal =
+    document.getElementById("bulkDeleteModal");
+
+
+if (bulkDeleteModal) {
+
+    bulkDeleteModal.addEventListener(
+        "show.bs.modal",
+        function () {
+
+            const selected =
+                document.querySelectorAll(
+                    ".result-checkbox:checked"
+                );
+
+            document.getElementById(
+                "bulkDeleteCount"
+            ).textContent = selected.length;
+
+        }
+    );
+
+}
+
+/* ==========================================================
+   Result search
+   ========================================================== */
+
+const resultSearch =
+    document.getElementById("resultSearch");
+
+const resultTiles =
+    document.querySelectorAll(".result-tile");
+
+
+if (resultSearch) {
+
+    resultSearch.addEventListener(
+        "input",
+        function () {
+
+            const searchTerm =
+                this.value
+                    .trim()
+                    .toLowerCase();
+
+
+            resultTiles.forEach(function (tile) {
+
+                const searchableText =
+                    (
+                        tile.dataset.search || ""
+                    ).toLowerCase();
+
+
+                const matches =
+                    searchTerm === "" ||
+                    searchableText.includes(searchTerm);
+
+
+                tile.style.display =
+                    matches ? "" : "none";
+
+            });
+
+        }
+    );
+
+}
+
+const resultTextModal =
+    document.getElementById("resultTextModal");
+
+const resultTextContent =
+    document.getElementById("resultTextContent");
+
+const resultTextElements =
+    document.querySelectorAll(".result-text-clickable");
+
+if (
+    resultTextModal &&
+    resultTextContent
+) {
+
+    resultTextElements.forEach(function (element) {
+
+        element.addEventListener(
+            "click",
+            function () {
+
+                resultTextContent.textContent =
+                    element.dataset.resultText;
+
+                const modal =
+                    bootstrap.Modal.getOrCreateInstance(
+                        resultTextModal
+                    );
+
+                modal.show();
+            }
+        );
+
+    });
+
+}
+
+</script>
+
+{% endblock %}

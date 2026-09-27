@@ -1,0 +1,183 @@
+{% extends "pulsarr/index.html" %}
+
+{% block title %}
+
+Activity Log
+
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <input
+        type="search"
+        id="activityLogSearch"
+        class="search-box activity-log-search"
+        placeholder="Search activity..."
+        autocomplete="off">
+
+    <div class="page-actions">
+        <button
+            type="button"
+            class="btn btn-danger"
+            data-bs-toggle="modal"
+            data-bs-target="#clearActivityLogModal">
+            <i class="bi bi-trash"></i>
+            Clear Log
+        </button>
+    </div>
+</div>
+
+<div class="table-responsive">
+
+    <table class="table table-hover">
+
+        <thead>
+
+            <tr>
+                <th>Date / Time</th>
+                <th>Level</th>
+                <th>Source</th>
+                <th>Message</th>
+                <th>Details</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            {% for log in logs %}
+
+            <tr class="activity-log-row" data-search="
+                {{ to_local_time(log.created_at).strftime("%Y-%m-%d %H:%M:%S") }}
+                {{ log.level }}
+                {{ log.source }}
+                {{ log.message }}
+                {{ log.details }}
+            ">
+                <td>
+                    {{ to_local_time(log.created_at).strftime("%Y-%m-%d %H:%M:%S") }}
+                </td>
+
+                <td>
+                    <span class="activity-level activity-level-{{ log.level|lower }}">
+                        {{ log.level }}
+                    </span>
+                </td>
+
+                <td>
+                    {{ log.source }}
+                </td>
+
+                <td>
+                    {{ log.message }}
+                </td>
+
+                <td>
+                    {{ log.details }}
+                </td>
+
+            </tr>
+
+            {% else %}
+
+            <tr>
+
+                <td colspan="5" class="text-muted">
+                    No activity logged.
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+    <div
+        class="modal fade"
+        id="clearActivityLogModal"
+        tabindex="-1"
+        aria-hidden="true">
+
+        <div class="modal-dialog modal-dialog-centered">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        Clear Activity Log
+                    </h5>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    Are you sure you want to permanently delete
+                    all activity log entries?
+                </div>
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+
+                    <form
+                        method="post"
+                        action="/activity-log/clear">
+
+                        <button
+                            type="submit"
+                            class="btn btn-danger">
+                            <i class="bi bi-trash me-2"></i>
+                            Clear Log
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+const activityLogSearch =
+    document.getElementById("activityLogSearch");
+
+const activityLogRows =
+    document.querySelectorAll(".activity-log-row");
+
+if (activityLogSearch) {
+    activityLogSearch.addEventListener("input", function () {
+        const searchTerm =
+            activityLogSearch.value.trim().toLowerCase();
+
+        activityLogRows.forEach(function (row) {
+            const searchableText =
+                row.dataset.search.toLowerCase();
+
+            row.style.display =
+                searchTerm === "" ||
+                searchableText.includes(searchTerm)
+                    ? ""
+                    : "none";
+        });
+    });
+}
+</script>
+
+{% endblock %}

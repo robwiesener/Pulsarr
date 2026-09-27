@@ -1,0 +1,386 @@
+{% extends "pulsarr/index.html" %}
+
+{% block title %}
+Configuration - Pulsarr
+{% endblock %}
+
+{% block content %}
+
+<div class="card-body p-4">
+
+<form
+    action="/configuration"
+    method="post">
+
+    <hr class="my-4">
+
+    <h5 class="mb-4">
+        Calibre
+    </h5>
+
+    <div class="mb-4">
+
+        <label
+            for="calibre_url"
+            class="form-label">
+
+            Calibre Content Server URL
+
+        </label>
+
+        <input
+            type="url"
+            class="form-control"
+            id="calibre_url"
+            name="calibre_url"
+            value="{{ settings.calibre.url }}"
+            placeholder="http://localhost:8080">
+
+    </div>
+
+    <button
+        type="submit"
+        class="btn btn-primary"
+        name="action"
+        value="save_calibre">
+
+        <i class="bi bi-floppy"></i>
+        Save
+
+    </button>
+
+    <button
+        type="submit"
+        class="btn btn-secondary"
+        name="action"
+        value="test_calibre">
+
+        Test Connection
+
+    </button>
+
+    <button
+        type="submit"
+        class="btn btn-primary"
+        name="action"
+        value="sync_calibre">
+
+        Sync Library
+
+    </button>
+
+    {% if test_calibre_message %}
+
+    <div class="alert settings-message {% if test_calibre_success %}alert-success{% else %}alert-danger{% endif %} mt-3">
+
+        {{ test_calibre_message }}
+
+    </div>
+
+    {% endif %}
+
+    {% if sync_calibre_message %}
+
+    <div class="alert settings-message {% if sync_calibre_success %}alert-success{% else %}alert-danger{% endif %} mt-3">
+
+        {{ sync_calibre_message }}
+
+    </div>
+
+    {% endif %}
+
+    <div class="mt-3">
+
+        <strong>
+            Books in Pulsarr:
+        </strong>
+
+        {{ book_count }}
+
+    </div>
+
+    <hr class="my-4">
+
+    <h5 class="mb-4">
+        Spotweb API Configuration
+    </h5>
+
+    <div class="mb-4">
+
+        <label
+            for="spotweb_url"
+            class="form-label">
+
+            Spotweb URL
+
+        </label>
+
+        <input
+            type="text"
+            class="form-control"
+            id="spotweb_url"
+            name="spotweb_url"
+            value="{{ settings.spotweb.url }}"
+            placeholder="http://localhost:9080">
+
+    </div>
+
+    <div class="mb-4">
+
+        <label
+            for="spotweb_api_key"
+            class="form-label">
+
+            Spotweb API Key
+
+        </label>
+
+        <input
+            type="password"
+            class="form-control"
+            id="spotweb_api_key"
+            name="spotweb_api_key"
+            value="{{ settings.spotweb.api_key }}">
+
+    </div>
+
+    <button
+        type="submit"
+        class="btn btn-primary"
+        name="action"
+        value="save_spotweb">
+
+        <i class="bi bi-floppy"></i>
+        Save
+
+    </button>
+
+    <button
+        type="submit"
+        class="btn btn-secondary"
+        name="action"
+        value="test_spotweb">
+
+        Test Connection
+
+    </button>
+
+    {% if test_spotweb_message %}
+
+    <div class="alert settings-message {% if test_spotweb_success %}alert-success{% else %}alert-danger{% endif %} mt-3">
+
+        {{ test_spotweb_message }}
+
+    </div>
+
+    {% endif %}
+
+    <hr class="my-4">
+
+    <h5 class="mb-4">
+        SABnzbd API Configuration
+    </h5>
+
+    <div class="mb-4">
+
+        <label
+            for="sabnzbd_url"
+            class="form-label">
+
+            SABnzbd URL
+
+        </label>
+
+        <input
+            type="text"
+            class="form-control"
+            id="sabnzbd_url"
+            name="sabnzbd_url"
+            value="{{ settings.sabnzbd.url }}"
+            placeholder="http://localhost:8080">
+
+    </div>
+
+    <div class="mb-4">
+
+        <label
+            for="sabnzbd_api_key"
+            class="form-label">
+
+            SABnzbd API Key
+
+        </label>
+
+        <input
+            type="password"
+            class="form-control"
+            id="sabnzbd_api_key"
+            name="sabnzbd_api_key"
+            value="{{ settings.sabnzbd.api_key }}">
+
+    </div>
+
+    <div class="mb-4">
+
+        <label
+            for="sabnzbd_category"
+            class="form-label">
+
+            Category
+
+        </label>
+
+        <input
+            type="text"
+            class="form-control"
+            id="sabnzbd_category"
+            name="sabnzbd_category"
+            value="{{ settings.sabnzbd.category }}">
+
+    </div>
+
+    <button
+        type="submit"
+        class="btn btn-primary"
+        name="action"
+        value="save_sabnzbd">
+
+        <i class="bi bi-floppy"></i>
+        Save
+
+    </button>
+
+    <button
+        type="submit"
+        class="btn btn-secondary"
+        name="action"
+        value="test_sabnzbd">
+
+        Test Connection
+
+    </button>
+
+    {% if test_message %}
+
+    <div class="alert settings-message {% if test_success %}alert-success{% else %}alert-danger{% endif %} mt-3">
+
+        {{ test_message }}
+
+    </div>
+
+    {% endif %}
+
+    <hr class="my-4">
+
+    <h5 class="mb-4">
+        Background Tasks
+    </h5>
+
+    <div class="mb-4">
+
+        <label
+            for="download_status_interval"
+            class="form-label">
+
+            Download status interval
+
+        </label>
+
+        <input
+            type="number"
+            class="form-control"
+            id="download_status_interval"
+            name="download_status_interval"
+            value="{{ settings.background.download_status_interval }}"
+            min="15">
+
+        <div class="form-text">
+            How often Pulsarr checks active downloads.
+            Minimum: 15 seconds.
+        </div>
+
+    </div>
+
+    <div class="mb-4">
+
+        <label
+            for="wishlist_search_interval"
+            class="form-label">
+
+            Wishlist search interval
+
+        </label>
+
+        <input
+            type="number"
+            class="form-control"
+            id="wishlist_search_interval"
+            name="wishlist_search_interval"
+            value="{{ settings.background.wishlist_search_interval }}"
+            min="300">
+
+        <div class="form-text">
+            How often Pulsarr searches for new wishlist matches.
+            Minimum: 5 minuten.
+        </div>
+
+    </div>
+
+    <button
+        type="submit"
+        class="btn btn-primary"
+        name="action"
+        value="save_background">
+
+        <i class="bi bi-floppy"></i>
+        Save Background Settings
+
+    </button>
+
+    <hr class="my-4">
+
+    <h5 class="mb-4">
+        Wishlist Search
+    </h5>
+
+    <div class="mb-4">
+
+        <label
+            for="description_search_keywords"
+            class="form-label">
+
+            Description search keywords
+
+        </label>
+
+        <input
+            type="text"
+            class="form-control"
+            id="description_search_keywords"
+            name="description_search_keywords"
+            value="{{ settings.wishlist.description_search_keywords }}">
+
+        <div class="form-text">
+            When a Spotweb title contains one of these words,
+            Pulsarr will also search the description for wishlist matches.
+            Separate multiple words with commas.
+        </div>
+
+    </div>
+
+    <button
+        type="submit"
+        class="btn btn-primary"
+        name="action"
+        value="save_wishlist">
+
+        <i class="bi bi-floppy"></i>
+        Save Wishlist Settings
+
+    </button>
+
+</form>
+
+</div>
+
+{% endblock %}
