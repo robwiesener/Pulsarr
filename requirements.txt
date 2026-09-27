@@ -4,3 +4,5 @@ jinja2
 sqlmodel
 requests
 python-multipart
+PyJWT>=2.8.0
+cryptography>=42.0.0
