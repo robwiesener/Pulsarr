@@ -17,10 +17,21 @@ class ConfigService:
     def load(self) -> AppSettings:
 
         if not CONFIG_FILE.exists():
-            return AppSettings()
+            data = {}
+        else:
+            with open(CONFIG_FILE, "r") as f:
+                data = json.load(f)
 
-        with open(CONFIG_FILE, "r") as f:
-            data = json.load(f)
+        # Environment variables overschrijven config.json (indien gezet).
+        # Zo kun je in Docker secrets via env vars injecteren zonder
+        # de UI-functionaliteit te verliezen.
+        spotweb_env = os.getenv("SPOTWEB_API_KEY")
+        if spotweb_env:
+            data.setdefault("spotweb", {})["api_key"] = spotweb_env
+
+        sabnzbd_env = os.getenv("SABNZBD_API_KEY")
+        if sabnzbd_env:
+            data.setdefault("sabnzbd", {})["api_key"] = sabnzbd_env
 
         return AppSettings(**data)
 
@@ -37,6 +48,12 @@ class ConfigService:
                 f,
                 indent=4,
             )
+
+        # Bestandsrechten beperken tot de eigenaar (Unix only).
+        try:
+            os.chmod(CONFIG_FILE, 0o600)
+        except OSError:
+            pass
 
 
 config_service = ConfigService()

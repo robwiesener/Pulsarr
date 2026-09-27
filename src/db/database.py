@@ -18,7 +18,7 @@ import os
 from sqlmodel import Session, SQLModel, create_engine
 
 DB_DIR = Path(
-    os.getenv("PULSARR_CONFIG_DIR", "/config")
+    os.getenv("PULSARR_CONFIG_DIR", "config")
 )
 
 DB_DIR.mkdir(
