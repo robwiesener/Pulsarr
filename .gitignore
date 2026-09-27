@@ -18,8 +18,6 @@ config/config.json
 
 # Docker local test data
 docker-test/
-# Local Pulsarr library
-Library/
 
-# Local Pulsarr library
-Library/
+# Local Pulsarr library (alleen in repo-root)
+/Library/

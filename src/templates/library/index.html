@@ -1,0 +1,845 @@
+{% extends "pulsarr/index.html" %}
+
+{% block title %}
+Library - Pulsarr
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <!-- Search & sort -->
+
+    <input
+        type="search"
+        id="librarySearch"
+        class="search-box"
+        placeholder="Search title, author or series..."
+        autocomplete="off">
+
+    <div class="page-actions">
+
+
+        <!-- Date -->
+        <button
+            type="button"
+            class="library-sort-button active"
+            data-sort="uploaded"
+            data-direction="desc"
+            title="Sort by upload date">
+
+            <i class="bi bi-calendar3 library-sort-icon"></i>
+
+        </button>
+
+        <!-- Title -->
+        <button
+            type="button"
+            class="library-sort-button"
+            data-sort="title"
+            data-direction="asc"
+            title="Sort by title">
+
+            <i class="bi bi-book library-sort-icon"></i>
+
+        </button>
+
+        <!-- Author -->
+        <button
+            type="button"
+            class="library-sort-button"
+            data-sort="author"
+            data-direction="asc"
+            title="Sort by author">
+
+            <i class="bi bi-person library-sort-icon"></i>
+
+        </button>
+
+        <!-- Rating filter -->
+
+        <select
+            id="libraryRatingFilter"
+            class="library-rating-filter"
+            title="Filter by rating">
+
+            <option value="all">All</option>
+            <option value="none">None</option>
+            <option value="1">★</option>
+            <option value="2">★★</option>
+            <option value="3">★★★</option>
+            <option value="4">★★★★</option>
+            <option value="5">★★★★★</option>
+
+        </select>
+
+    </div>
+
+    <!-- Library -->
+
+    {% if books %}
+
+    <div class="library-grid">
+
+        {% for book in books %}
+
+        <div
+            class="library-book"
+            role="button"
+            tabindex="0"
+
+            data-search="{{ book.title }} {{ book.author }} {{ book.series or '' }}"
+
+            data-title="{{ book.title|lower }}"
+
+            data-author="{{ book.author|lower }}"
+
+            data-uploaded-timestamp="{{ book.uploaded_at.timestamp() if book.uploaded_at else 0 }}"
+
+            data-rating="{{ book.rating if book.rating is not none else 0 }}"
+
+            data-book-id="{{ book.id }}"
+            data-description="{{ book.description or '' }}"
+            data-series="{{ book.series or '' }}"
+            data-series-index="{{ book.series_index if book.series_index is not none else '' }}"
+            data-rating="{{ book.rating if book.rating is not none else '' }}"
+            data-uploaded="{{ book.uploaded_at.strftime('%d-%m-%Y') if book.uploaded_at else '' }}">
+
+            <div class="library-cover">
+
+                {% if book.local_cover_path %}
+                <img
+                    src="/library/cover/{{ book.id }}"
+                    alt="{{ book.title }}"
+                    loading="lazy">
+                {% endif %}
+
+            </div>
+
+            <div class="library-info">
+
+                <div class="library-top-row">
+
+                    {% if book.rating is not none %}
+                    <div
+                        class="library-rating"
+                        aria-label="Rating {{ book.rating }} out of 5">
+
+                        {% set rating = book.rating|round(0, 'floor')|int %}
+
+                        {{ "★" * rating }}{{ "☆" * (5 - rating) }}
+
+                    </div>
+                    {% endif %}
+
+                    {% if book.uploaded_at %}
+                    <div class="library-uploaded">
+                        {{ book.uploaded_at.strftime("%d-%m-%Y") }}
+                    </div>
+                    {% endif %}
+
+                </div>
+
+                <h5>
+                    {{ book.title }}
+                </h5>
+
+                <div class="library-author">
+                    {{ book.author }}
+                </div>
+
+                <div
+                    class="library-book-description"
+                    hidden>
+                    {{ book.description or '' }}
+                </div>
+
+            </div>
+
+
+
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <div class="text-muted">
+        No books in your library.
+    </div>
+
+    {% endif %}
+
+</div>
+
+<!-- Book detail modal -->
+
+<div
+    class="modal fade"
+    id="libraryBookModal"
+    tabindex="-1"
+    aria-hidden="true">
+
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <div class="library-modal-layout">
+
+                    <!-- Cover + book information -->
+
+                    <div class="library-modal-book">
+
+                        <div class="library-modal-cover">
+
+                            <img
+                                id="libraryModalCover"
+                                src=""
+                                alt="">
+
+                        </div>
+
+                        <div class="library-modal-info">
+
+                            <div
+                                id="libraryModalRating"
+                                class="library-modal-rating">
+                            </div>
+
+                            <h3 id="libraryModalBookTitle"></h3>
+
+                            <div
+                                id="libraryModalAuthor"
+                                class="library-modal-author">
+                            </div>
+
+                            <div
+                                id="libraryModalSeries"
+                                class="library-modal-series">
+                            </div>
+
+                            <div
+                                id="libraryModalUploaded"
+                                class="library-modal-uploaded">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Description -->
+
+                    <div class="library-modal-description-panel">
+
+                        <div
+                            id="libraryModalDescription"
+                            class="library-modal-description">
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const searchInput =
+        document.getElementById("librarySearch");
+
+    const libraryGrid =
+        document.querySelector(".library-grid");
+
+    const books =
+        Array.from(
+            document.querySelectorAll(".library-book")
+        );
+
+    const count =
+        document.getElementById("libraryCount");
+
+    /* ==========================================================
+       Library filter & sort
+       ========================================================== */
+
+    let currentSort = "uploaded-desc";
+    let currentRatingFilter = "all";
+
+
+    /* ==========================================================
+       Update library
+       ========================================================== */
+
+    function updateLibrary() {
+
+        const search =
+            searchInput.value
+                .toLowerCase()
+                .trim();
+
+
+        const visibleBooks =
+            books.filter(function (book) {
+
+                const text =
+                    book.dataset.search
+                        .toLowerCase();
+
+
+                const matchesSearch =
+                    !search ||
+                    text.includes(search);
+
+
+                const rating =
+                    Number(
+                        book.dataset.rating || 0
+                    );
+
+                const matchesRating =
+                    currentRatingFilter === "all" ||
+                    (
+                        currentRatingFilter === "none"
+                            ? book.dataset.rating === "" ||
+                            book.dataset.rating === "0"
+                            : rating === Number(currentRatingFilter)
+                    );
+
+                return (
+                    matchesSearch &&
+                    matchesRating
+                );
+
+            });
+
+
+        /* ------------------------------------------------------
+           Sort
+           ------------------------------------------------------ */
+
+        visibleBooks.sort(function (a, b) {
+
+            switch (currentSort) {
+
+                case "title-asc":
+
+                    return a.dataset.title
+                        .localeCompare(
+                            b.dataset.title
+                        );
+
+
+                case "title-desc":
+
+                    return b.dataset.title
+                        .localeCompare(
+                            a.dataset.title
+                        );
+
+
+                case "author-asc":
+
+                    return a.dataset.author
+                        .localeCompare(
+                            b.dataset.author
+                        );
+
+
+                case "author-desc":
+
+                    return b.dataset.author
+                        .localeCompare(
+                            a.dataset.author
+                        );
+
+
+                case "uploaded-desc":
+
+                    return (
+                        Number(b.dataset.uploadedTimestamp) -
+                        Number(a.dataset.uploadedTimestamp)
+                    );
+
+
+                case "uploaded-asc":
+
+                    return (
+                        Number(a.dataset.uploadedTimestamp) -
+                        Number(b.dataset.uploadedTimestamp)
+                    );
+
+
+                default:
+
+                    return 0;
+
+            }
+
+        });
+
+
+        /* ------------------------------------------------------
+           Render
+           ------------------------------------------------------ */
+
+        books.forEach(function (book) {
+
+            book.style.display = "none";
+
+        });
+
+
+        visibleBooks.forEach(function (book) {
+
+            book.style.display = "";
+
+            libraryGrid.appendChild(book);
+
+        });
+
+
+        /* ------------------------------------------------------
+           Counter
+           ------------------------------------------------------ */
+
+        count.textContent =
+            visibleBooks.length + " books";
+
+    }
+
+
+    /* ==========================================================
+       Search
+       ========================================================== */
+
+    searchInput.addEventListener(
+        "input",
+        updateLibrary
+    );
+
+
+    /* ==========================================================
+       Sort buttons
+       ========================================================== */
+
+    document
+        .querySelectorAll(".library-sort-button")
+        .forEach(function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    const sortType =
+                        button.dataset.sort;
+
+
+                    let direction =
+                        button.dataset.direction;
+
+
+                    /*
+                     * Clicking the active button
+                     * toggles the direction.
+                     */
+
+                    if (
+                        button.classList.contains(
+                            "active"
+                        )
+                    ) {
+
+                        direction =
+                            direction === "asc"
+                                ? "desc"
+                                : "asc";
+
+                    }
+
+
+                    button.dataset.direction =
+                        direction;
+
+
+                    currentSort =
+                        sortType +
+                        "-" +
+                        direction;
+
+
+                    /*
+                     * Only one sort button
+                     * can be active.
+                     */
+
+                    document
+                        .querySelectorAll(
+                            ".library-sort-button"
+                        )
+                        .forEach(
+                            function (otherButton) {
+
+                                otherButton.classList.remove(
+                                    "active"
+                                );
+
+                            }
+                        );
+
+
+                    button.classList.add(
+                        "active"
+                    );
+
+
+                    updateLibrary();
+
+                }
+            );
+
+        });
+
+
+    /* ==========================================================
+       Rating filter
+       ========================================================== */
+
+    const ratingFilter =
+        document.getElementById(
+            "libraryRatingFilter"
+        );
+
+    ratingFilter.addEventListener(
+        "change",
+        function () {
+
+            currentRatingFilter =
+                ratingFilter.value;
+
+
+            /* Active state */
+
+            if (
+                currentRatingFilter === "all"
+            ) {
+
+                ratingFilter.classList.remove(
+                    "active"
+                );
+
+            } else {
+
+                ratingFilter.classList.add(
+                    "active"
+                );
+
+            }
+
+
+            updateLibrary();
+
+        }
+    );
+
+    /* ==========================================================
+       Book details modal
+       ========================================================== */
+
+    const modalElement =
+        document.getElementById(
+            "libraryBookModal"
+        );
+
+
+    function getLibraryModal() {
+
+        return bootstrap.Modal.getOrCreateInstance(
+            modalElement
+        );
+
+    }
+
+    const libraryModalBookTitle =
+        document.getElementById(
+            "libraryModalBookTitle"
+        );
+
+
+    const libraryModalCover =
+        document.getElementById(
+            "libraryModalCover"
+        );
+
+
+    const libraryModalAuthor =
+        document.getElementById(
+            "libraryModalAuthor"
+        );
+
+
+    const libraryModalSeries =
+        document.getElementById(
+            "libraryModalSeries"
+        );
+
+
+    const libraryModalRating =
+        document.getElementById(
+            "libraryModalRating"
+        );
+
+
+    const libraryModalUploaded =
+        document.getElementById(
+            "libraryModalUploaded"
+        );
+
+
+    const libraryModalDescription =
+        document.getElementById(
+            "libraryModalDescription"
+        );
+
+
+    function openLibraryBook(book) {
+
+        const title =
+            book.querySelector(
+                ".library-info h5"
+            )?.textContent.trim() || "";
+
+        const author =
+            book.querySelector(
+                ".library-author"
+            )?.textContent.trim() || "";
+
+        const series =
+            book.dataset.series || "";
+
+        const seriesIndex =
+            book.dataset.seriesIndex || "";
+
+        const description =
+            book.dataset.description || "";
+
+        const rating =
+            Number(book.dataset.rating || 0);
+
+        const uploaded =
+            book.dataset.uploaded || "";
+
+        const cover =
+            book.querySelector(
+                ".library-cover img"
+            );
+
+        /* ------------------------------------------------------
+           Title
+           ------------------------------------------------------ */
+
+        libraryModalBookTitle.textContent =
+            title;
+
+
+        /* ------------------------------------------------------
+           Author
+           ------------------------------------------------------ */
+
+        libraryModalAuthor.textContent =
+            author;
+
+        /* ------------------------------------------------------
+           Series
+           ------------------------------------------------------ */
+
+        if (series) {
+
+            libraryModalSeries.textContent =
+                seriesIndex
+                    ? `${series} (${seriesIndex})`
+                    : series;
+
+            libraryModalSeries.style.display =
+                "";
+
+        } else {
+
+            libraryModalSeries.textContent =
+                "";
+
+            libraryModalSeries.style.display =
+                "none";
+
+        }
+
+
+        /* ------------------------------------------------------
+           Rating
+           ------------------------------------------------------ */
+
+        if (rating > 0) {
+
+            libraryModalRating.textContent =
+                "★".repeat(rating) +
+                "☆".repeat(5 - rating);
+
+            libraryModalRating.style.display =
+                "";
+
+        } else {
+
+            libraryModalRating.textContent =
+                "";
+
+            libraryModalRating.style.display =
+                "none";
+
+        }
+
+
+        /* ------------------------------------------------------
+           Upload date
+           ------------------------------------------------------ */
+
+        if (uploaded) {
+
+            libraryModalUploaded.textContent =
+                uploaded;
+
+            libraryModalUploaded.style.display =
+                "";
+
+        } else {
+
+            libraryModalUploaded.textContent =
+                "";
+
+            libraryModalUploaded.style.display =
+                "none";
+
+        }
+
+
+
+        /* ------------------------------------------------------
+           Cover
+           ------------------------------------------------------ */
+
+        if (cover) {
+
+            libraryModalCover.src =
+                cover.src;
+
+            libraryModalCover.alt =
+                title;
+
+            libraryModalCover.style.display =
+                "";
+
+        } else {
+
+            libraryModalCover.src =
+                "";
+
+            libraryModalCover.alt =
+                "";
+
+            libraryModalCover.style.display =
+                "none";
+
+        }
+
+
+        /* ------------------------------------------------------
+           Description
+           ------------------------------------------------------ */
+
+        libraryModalDescription.textContent =
+            description ||
+            "No description available.";
+
+
+        /* ------------------------------------------------------
+           Show modal
+           ------------------------------------------------------ */
+
+        getLibraryModal().show();
+
+    }
+
+
+    /* ==========================================================
+       Book click handlers
+       ========================================================== */
+
+    books.forEach(function (book) {
+
+        book.addEventListener(
+            "click",
+            function () {
+
+                openLibraryBook(book);
+
+            }
+        );
+
+
+        book.addEventListener(
+            "keydown",
+            function (event) {
+
+                if (
+                    event.key === "Enter" ||
+                    event.key === " "
+                ) {
+
+                    event.preventDefault();
+
+                    openLibraryBook(book);
+
+                }
+
+            }
+        );
+
+    });
+
+
+    /* ==========================================================
+       Initial render
+       ========================================================== */
+
+    updateLibrary();
+
+});
+
+
+</script>
+
+
+{% endblock %}
