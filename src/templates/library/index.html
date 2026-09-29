@@ -6,74 +6,124 @@ Library - Pulsarr
 
 {% block content %}
 
+{# --------------------------------------------------------------
+   URL helpers voor sorteren en pagineren.
+   Elke link behoudt de andere filters.
+   -------------------------------------------------------------- #}
+
+{% macro sort_url(new_sort, new_direction) -%}
+/library?page=1&per_page={{ per_page }}&sort={{ new_sort }}&direction={{ new_direction }}{% if q %}&q={{ q|urlencode }}{% endif %}&rating={{ rating }}
+{%- endmacro %}
+
+{% macro page_url(p) -%}
+/library?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&direction={{ direction }}{% if q %}&q={{ q|urlencode }}{% endif %}&rating={{ rating }}
+{%- endmacro %}
+
+{# Volgende richting per sorteer-knop #}
+{% if sort == 'uploaded' %}
+    {% set uploaded_next_dir = 'desc' if direction == 'asc' else 'asc' %}
+{% else %}
+    {% set uploaded_next_dir = 'desc' %}
+{% endif %}
+
+{% if sort == 'title' %}
+    {% set title_next_dir = 'desc' if direction == 'asc' else 'asc' %}
+{% else %}
+    {% set title_next_dir = 'asc' %}
+{% endif %}
+
+{% if sort == 'author' %}
+    {% set author_next_dir = 'desc' if direction == 'asc' else 'asc' %}
+{% else %}
+    {% set author_next_dir = 'asc' %}
+{% endif %}
+
+
 <div class="page-header">
 
-    <!-- Search & sort -->
+    <form
+        method="get"
+        action="/library"
+        class="library-filters">
 
-    <input
-        type="search"
-        id="librarySearch"
-        class="search-box"
-        placeholder="Search title, author or series..."
-        autocomplete="off">
+        <input
+            type="hidden"
+            name="per_page"
+            value="{{ per_page }}">
 
-    <div class="page-actions">
+        <input
+            type="hidden"
+            name="sort"
+            value="{{ sort }}">
 
+        <input
+            type="hidden"
+            name="direction"
+            value="{{ direction }}">
 
-        <!-- Date -->
-        <button
-            type="button"
-            class="library-sort-button active"
-            data-sort="uploaded"
-            data-direction="desc"
-            title="Sort by upload date">
+        <input
+            type="search"
+            name="q"
+            id="librarySearch"
+            class="search-box"
+            placeholder="Search title, author or series..."
+            value="{{ q }}"
+            autocomplete="off">
 
-            <i class="bi bi-calendar3 library-sort-icon"></i>
+        <div class="page-actions">
 
-        </button>
+            <!-- Date -->
+            <a
+                href="{{ sort_url('uploaded', uploaded_next_dir) }}"
+                class="library-sort-button {% if sort == 'uploaded' %}active{% endif %}"
+                title="Sort by upload date">
 
-        <!-- Title -->
-        <button
-            type="button"
-            class="library-sort-button"
-            data-sort="title"
-            data-direction="asc"
-            title="Sort by title">
+                <i class="bi bi-calendar3 library-sort-icon"></i>
 
-            <i class="bi bi-book library-sort-icon"></i>
+            </a>
 
-        </button>
+            <!-- Title -->
+            <a
+                href="{{ sort_url('title', title_next_dir) }}"
+                class="library-sort-button {% if sort == 'title' %}active{% endif %}"
+                title="Sort by title">
 
-        <!-- Author -->
-        <button
-            type="button"
-            class="library-sort-button"
-            data-sort="author"
-            data-direction="asc"
-            title="Sort by author">
+                <i class="bi bi-book library-sort-icon"></i>
 
-            <i class="bi bi-person library-sort-icon"></i>
+            </a>
 
-        </button>
+            <!-- Author -->
+            <a
+                href="{{ sort_url('author', author_next_dir) }}"
+                class="library-sort-button {% if sort == 'author' %}active{% endif %}"
+                title="Sort by author">
 
-        <!-- Rating filter -->
+                <i class="bi bi-person library-sort-icon"></i>
 
-        <select
-            id="libraryRatingFilter"
-            class="library-rating-filter"
-            title="Filter by rating">
+            </a>
 
-            <option value="all">All</option>
-            <option value="none">None</option>
-            <option value="1">★</option>
-            <option value="2">★★</option>
-            <option value="3">★★★</option>
-            <option value="4">★★★★</option>
-            <option value="5">★★★★★</option>
+            <!-- Rating filter -->
 
-        </select>
+            <select
+                name="rating"
+                id="libraryRatingFilter"
+                class="library-rating-filter {% if rating != 'all' %}active{% endif %}"
+                title="Filter by rating"
+                onchange="this.form.submit()">
 
-    </div>
+                <option value="all" {% if rating == 'all' %}selected{% endif %}>All</option>
+                <option value="none" {% if rating == 'none' %}selected{% endif %}>None</option>
+                <option value="1" {% if rating == '1' %}selected{% endif %}>★</option>
+                <option value="2" {% if rating == '2' %}selected{% endif %}>★★</option>
+                <option value="3" {% if rating == '3' %}selected{% endif %}>★★★</option>
+                <option value="4" {% if rating == '4' %}selected{% endif %}>★★★★</option>
+                <option value="5" {% if rating == '5' %}selected{% endif %}>★★★★★</option>
+
+            </select>
+
+        </div>
+
+    </form>
 
     <!-- Library -->
 
@@ -88,20 +138,11 @@ Library - Pulsarr
             role="button"
             tabindex="0"
 
-            data-search="{{ book.title }} {{ book.author }} {{ book.series or '' }}"
-
-            data-title="{{ book.title|lower }}"
-
-            data-author="{{ book.author|lower }}"
-
-            data-uploaded-timestamp="{{ book.uploaded_at.timestamp() if book.uploaded_at else 0 }}"
-
-            data-rating="{{ book.rating if book.rating is not none else 0 }}"
-
             data-book-id="{{ book.id }}"
             data-description="{{ book.description or '' }}"
             data-series="{{ book.series or '' }}"
             data-series-index="{{ book.series_index if book.series_index is not none else '' }}"
+            data-rating="{{ book.rating if book.rating is not none else '' }}"
             data-uploaded="{{ book.uploaded_at.strftime('%d-%m-%Y') if book.uploaded_at else '' }}">
 
             <div class="library-cover">
@@ -124,9 +165,9 @@ Library - Pulsarr
                         class="library-rating"
                         aria-label="Rating {{ book.rating }} out of 5">
 
-                        {% set rating = book.rating|round(0, 'floor')|int %}
+                        {% set rating_value = book.rating|round(0, 'floor')|int %}
 
-                        {{ "★" * rating }}{{ "☆" * (5 - rating) }}
+                        {{ "★" * rating_value }}{{ "☆" * (5 - rating_value) }}
 
                     </div>
                     {% endif %}
@@ -181,7 +222,7 @@ Library - Pulsarr
 
             {% if page > 1 %}
                 <a
-                    href="/library?page={{ page - 1 }}&per_page={{ per_page }}"
+                    href="{{ page_url(page - 1) }}"
                     class="library-page-link">
                     <i class="bi bi-chevron-left"></i>
                     Previous
@@ -199,7 +240,7 @@ Library - Pulsarr
 
             {% if start_page > 1 %}
                 <a
-                    href="/library?page=1&per_page={{ per_page }}"
+                    href="{{ page_url(1) }}"
                     class="library-page-number">
                     1
                 </a>
@@ -213,7 +254,7 @@ Library - Pulsarr
                     <span class="library-page-number active">{{ p }}</span>
                 {% else %}
                     <a
-                        href="/library?page={{ p }}&per_page={{ per_page }}"
+                        href="{{ page_url(p) }}"
                         class="library-page-number">
                         {{ p }}
                     </a>
@@ -225,7 +266,7 @@ Library - Pulsarr
                     <span class="library-page-ellipsis">…</span>
                 {% endif %}
                 <a
-                    href="/library?page={{ total_pages }}&per_page={{ per_page }}"
+                    href="{{ page_url(total_pages) }}"
                     class="library-page-number">
                     {{ total_pages }}
                 </a>
@@ -233,7 +274,7 @@ Library - Pulsarr
 
             {% if page < total_pages %}
                 <a
-                    href="/library?page={{ page + 1 }}&per_page={{ per_page }}"
+                    href="{{ page_url(page + 1) }}"
                     class="library-page-link">
                     Next
                     <i class="bi bi-chevron-right"></i>
@@ -254,7 +295,13 @@ Library - Pulsarr
     {% else %}
 
     <div class="text-muted">
-        No books in your library.
+
+        {% if q or rating != 'all' %}
+            No books match your filters.
+        {% else %}
+            No books in your library.
+        {% endif %}
+
     </div>
 
     {% endif %}
@@ -287,8 +334,6 @@ Library - Pulsarr
             <div class="modal-body">
 
                 <div class="library-modal-layout">
-
-                    <!-- Cover + book information -->
 
                     <div class="library-modal-book">
 
@@ -329,9 +374,6 @@ Library - Pulsarr
 
                     </div>
 
-
-                    <!-- Description -->
-
                     <div class="library-modal-description-panel">
 
                         <div
@@ -355,526 +397,126 @@ Library - Pulsarr
 
 document.addEventListener("DOMContentLoaded", function () {
 
-    const searchInput =
-        document.getElementById("librarySearch");
+    /* ==========================================================
+       Book details modal
 
-    const libraryGrid =
-        document.querySelector(".library-grid");
+       Alle filter- en sorteerlogica loopt nu via de server.
+       Alleen de modal blijft client-side.
+       ========================================================== */
 
     const books =
         Array.from(
             document.querySelectorAll(".library-book")
         );
 
-    const count =
-        document.getElementById("libraryCount");
-
-    /* ==========================================================
-       Library filter & sort
-       ========================================================== */
-
-    let currentSort = "uploaded-desc";
-    let currentRatingFilter = "all";
-
-
-    /* ==========================================================
-       Update library
-       ========================================================== */
-
-    function updateLibrary() {
-
-        const search =
-            searchInput.value
-                .toLowerCase()
-                .trim();
-
-
-        const visibleBooks =
-            books.filter(function (book) {
-
-                const text =
-                    book.dataset.search
-                        .toLowerCase();
-
-
-                const matchesSearch =
-                    !search ||
-                    text.includes(search);
-
-
-                const rating =
-                    Number(
-                        book.dataset.rating || 0
-                    );
-
-                const matchesRating =
-                    currentRatingFilter === "all" ||
-                    (
-                        currentRatingFilter === "none"
-                            ? book.dataset.rating === "" ||
-                            book.dataset.rating === "0"
-                            : rating === Number(currentRatingFilter)
-                    );
-
-                return (
-                    matchesSearch &&
-                    matchesRating
-                );
-
-            });
-
-
-        /* ------------------------------------------------------
-           Sort
-           ------------------------------------------------------ */
-
-        visibleBooks.sort(function (a, b) {
-
-            switch (currentSort) {
-
-                case "title-asc":
-
-                    return a.dataset.title
-                        .localeCompare(
-                            b.dataset.title
-                        );
-
-
-                case "title-desc":
-
-                    return b.dataset.title
-                        .localeCompare(
-                            a.dataset.title
-                        );
-
-
-                case "author-asc":
-
-                    return a.dataset.author
-                        .localeCompare(
-                            b.dataset.author
-                        );
-
-
-                case "author-desc":
-
-                    return b.dataset.author
-                        .localeCompare(
-                            a.dataset.author
-                        );
-
-
-                case "uploaded-desc":
-
-                    return (
-                        Number(b.dataset.uploadedTimestamp) -
-                        Number(a.dataset.uploadedTimestamp)
-                    );
-
-
-                case "uploaded-asc":
-
-                    return (
-                        Number(a.dataset.uploadedTimestamp) -
-                        Number(b.dataset.uploadedTimestamp)
-                    );
-
-
-                default:
-
-                    return 0;
-
-            }
-
-        });
-
-
-        /* ------------------------------------------------------
-           Render
-           ------------------------------------------------------ */
-
-        books.forEach(function (book) {
-
-            book.style.display = "none";
-
-        });
-
-
-        visibleBooks.forEach(function (book) {
-
-            book.style.display = "";
-
-            libraryGrid.appendChild(book);
-
-        });
-
-
-        /* ------------------------------------------------------
-           Counter
-           ------------------------------------------------------ */
-
-        if (count) {
-            count.textContent =
-                visibleBooks.length + " books";
-        }
-
-    }
-
-
-    /* ==========================================================
-       Search
-       ========================================================== */
-
-    searchInput.addEventListener(
-        "input",
-        updateLibrary
-    );
-
-
-    /* ==========================================================
-       Sort buttons
-       ========================================================== */
-
-    document
-        .querySelectorAll(".library-sort-button")
-        .forEach(function (button) {
-
-            button.addEventListener(
-                "click",
-                function () {
-
-                    const sortType =
-                        button.dataset.sort;
-
-
-                    let direction =
-                        button.dataset.direction;
-
-
-                    if (
-                        button.classList.contains(
-                            "active"
-                        )
-                    ) {
-
-                        direction =
-                            direction === "asc"
-                                ? "desc"
-                                : "asc";
-
-                    }
-
-
-                    button.dataset.direction =
-                        direction;
-
-
-                    currentSort =
-                        sortType +
-                        "-" +
-                        direction;
-
-
-                    document
-                        .querySelectorAll(
-                            ".library-sort-button"
-                        )
-                        .forEach(
-                            function (otherButton) {
-
-                                otherButton.classList.remove(
-                                    "active"
-                                );
-
-                            }
-                        );
-
-
-                    button.classList.add(
-                        "active"
-                    );
-
-
-                    updateLibrary();
-
-                }
-            );
-
-        });
-
-
-    /* ==========================================================
-       Rating filter
-       ========================================================== */
-
-    const ratingFilter =
-        document.getElementById(
-            "libraryRatingFilter"
-        );
-
-    ratingFilter.addEventListener(
-        "change",
-        function () {
-
-            currentRatingFilter =
-                ratingFilter.value;
-
-
-            if (
-                currentRatingFilter === "all"
-            ) {
-
-                ratingFilter.classList.remove(
-                    "active"
-                );
-
-            } else {
-
-                ratingFilter.classList.add(
-                    "active"
-                );
-
-            }
-
-
-            updateLibrary();
-
-        }
-    );
-
-    /* ==========================================================
-       Book details modal
-       ========================================================== */
-
     const modalElement =
-        document.getElementById(
-            "libraryBookModal"
-        );
-
+        document.getElementById("libraryBookModal");
 
     function getLibraryModal() {
-
-        return bootstrap.Modal.getOrCreateInstance(
-            modalElement
-        );
-
+        return bootstrap.Modal.getOrCreateInstance(modalElement);
     }
 
     const libraryModalBookTitle =
-        document.getElementById(
-            "libraryModalBookTitle"
-        );
-
+        document.getElementById("libraryModalBookTitle");
 
     const libraryModalCover =
-        document.getElementById(
-            "libraryModalCover"
-        );
-
+        document.getElementById("libraryModalCover");
 
     const libraryModalAuthor =
-        document.getElementById(
-            "libraryModalAuthor"
-        );
-
+        document.getElementById("libraryModalAuthor");
 
     const libraryModalSeries =
-        document.getElementById(
-            "libraryModalSeries"
-        );
-
+        document.getElementById("libraryModalSeries");
 
     const libraryModalRating =
-        document.getElementById(
-            "libraryModalRating"
-        );
-
+        document.getElementById("libraryModalRating");
 
     const libraryModalUploaded =
-        document.getElementById(
-            "libraryModalUploaded"
-        );
-
+        document.getElementById("libraryModalUploaded");
 
     const libraryModalDescription =
-        document.getElementById(
-            "libraryModalDescription"
-        );
-
+        document.getElementById("libraryModalDescription");
 
     function openLibraryBook(book) {
 
         const title =
-            book.querySelector(
-                ".library-info h5"
-            )?.textContent.trim() || "";
+            book.querySelector(".library-info h5")
+                ?.textContent.trim() || "";
 
         const author =
-            book.querySelector(
-                ".library-author"
-            )?.textContent.trim() || "";
+            book.querySelector(".library-author")
+                ?.textContent.trim() || "";
 
-        const series =
-            book.dataset.series || "";
+        const series = book.dataset.series || "";
+        const seriesIndex = book.dataset.seriesIndex || "";
+        const description = book.dataset.description || "";
+        const rating = Number(book.dataset.rating || 0);
+        const uploaded = book.dataset.uploaded || "";
 
-        const seriesIndex =
-            book.dataset.seriesIndex || "";
+        const cover = book.querySelector(".library-cover img");
 
-        const description =
-            book.dataset.description || "";
-
-        const rating =
-            Number(book.dataset.rating || 0);
-
-        const uploaded =
-            book.dataset.uploaded || "";
-
-        const cover =
-            book.querySelector(
-                ".library-cover img"
-            );
-
-        libraryModalBookTitle.textContent =
-            title;
-
-
-        libraryModalAuthor.textContent =
-            author;
+        libraryModalBookTitle.textContent = title;
+        libraryModalAuthor.textContent = author;
 
         if (series) {
-
             libraryModalSeries.textContent =
-                seriesIndex
-                    ? `${series} (${seriesIndex})`
-                    : series;
-
-            libraryModalSeries.style.display =
-                "";
-
+                seriesIndex ? `${series} (${seriesIndex})` : series;
+            libraryModalSeries.style.display = "";
         } else {
-
-            libraryModalSeries.textContent =
-                "";
-
-            libraryModalSeries.style.display =
-                "none";
-
+            libraryModalSeries.textContent = "";
+            libraryModalSeries.style.display = "none";
         }
-
 
         if (rating > 0) {
-
             libraryModalRating.textContent =
-                "★".repeat(rating) +
-                "☆".repeat(5 - rating);
-
-            libraryModalRating.style.display =
-                "";
-
+                "★".repeat(rating) + "☆".repeat(5 - rating);
+            libraryModalRating.style.display = "";
         } else {
-
-            libraryModalRating.textContent =
-                "";
-
-            libraryModalRating.style.display =
-                "none";
-
+            libraryModalRating.textContent = "";
+            libraryModalRating.style.display = "none";
         }
-
 
         if (uploaded) {
-
-            libraryModalUploaded.textContent =
-                uploaded;
-
-            libraryModalUploaded.style.display =
-                "";
-
+            libraryModalUploaded.textContent = uploaded;
+            libraryModalUploaded.style.display = "";
         } else {
-
-            libraryModalUploaded.textContent =
-                "";
-
-            libraryModalUploaded.style.display =
-                "none";
-
+            libraryModalUploaded.textContent = "";
+            libraryModalUploaded.style.display = "none";
         }
-
 
         if (cover) {
-
-            libraryModalCover.src =
-                cover.src;
-
-            libraryModalCover.alt =
-                title;
-
-            libraryModalCover.style.display =
-                "";
-
+            libraryModalCover.src = cover.src;
+            libraryModalCover.alt = title;
+            libraryModalCover.style.display = "";
         } else {
-
-            libraryModalCover.src =
-                "";
-
-            libraryModalCover.alt =
-                "";
-
-            libraryModalCover.style.display =
-                "none";
-
+            libraryModalCover.src = "";
+            libraryModalCover.alt = "";
+            libraryModalCover.style.display = "none";
         }
 
-
         libraryModalDescription.textContent =
-            description ||
-            "No description available.";
-
+            description || "No description available.";
 
         getLibraryModal().show();
-
     }
-
 
     books.forEach(function (book) {
 
-        book.addEventListener(
-            "click",
-            function () {
+        book.addEventListener("click", function () {
+            openLibraryBook(book);
+        });
 
+        book.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
                 openLibraryBook(book);
-
             }
-        );
-
-
-        book.addEventListener(
-            "keydown",
-            function (event) {
-
-                if (
-                    event.key === "Enter" ||
-                    event.key === " "
-                ) {
-
-                    event.preventDefault();
-
-                    openLibraryBook(book);
-
-                }
-
-            }
-        );
+        });
 
     });
 
-
-    updateLibrary();
-
 });
 
-
 </script>
-
 
 {% endblock %}
