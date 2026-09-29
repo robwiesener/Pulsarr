@@ -397,6 +397,33 @@ Library - Pulsarr
 
 document.addEventListener("DOMContentLoaded", function () {
 
+
+    /* ==========================================================
+       Search-while-typing (debounced server-side search)
+       ========================================================== */
+
+    const searchInput = document.getElementById("librarySearch");
+
+    if (searchInput) {
+
+        // Zet cursor aan het einde na een reload, zodat
+        // de gebruiker verder kan typen waar hij gebleven was.
+        if (searchInput.value) {
+            searchInput.focus();
+            const len = searchInput.value.length;
+            searchInput.setSelectionRange(len, len);
+        }
+
+        let debounceTimer;
+
+        searchInput.addEventListener("input", function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                this.form.submit();
+            }, 400);
+        });
+    }
+
     /* ==========================================================
        Book details modal
 

@@ -1929,3 +1929,10 @@ body {
     padding: 0.4rem 0.5rem;
     color: var(--bs-secondary-color, #6c757d);
 }
+
+/* Laat het filter-formulier zich gedragen alsof het er niet is,
+   zodat .search-box en .page-actions weer directe flex-children
+   van .page-header lijken. */
+.library-filters {
+    display: contents;
+}
