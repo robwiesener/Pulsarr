@@ -102,7 +102,6 @@ Library - Pulsarr
             data-description="{{ book.description or '' }}"
             data-series="{{ book.series or '' }}"
             data-series-index="{{ book.series_index if book.series_index is not none else '' }}"
-            data-rating="{{ book.rating if book.rating is not none else '' }}"
             data-uploaded="{{ book.uploaded_at.strftime('%d-%m-%Y') if book.uploaded_at else '' }}">
 
             <div class="library-cover">
@@ -156,14 +155,101 @@ Library - Pulsarr
 
             </div>
 
-
-
-
         </div>
 
         {% endfor %}
 
     </div>
+
+    <!-- Pagination -->
+
+    {% if total_pages > 1 %}
+
+    <nav
+        class="library-pagination"
+        aria-label="Library pagination">
+
+        <div class="library-pagination-info">
+
+            Page {{ page }} of {{ total_pages }}
+            &middot;
+            {{ total }} book{{ "s" if total != 1 else "" }}
+
+        </div>
+
+        <div class="library-pagination-controls">
+
+            {% if page > 1 %}
+                <a
+                    href="/library?page={{ page - 1 }}&per_page={{ per_page }}"
+                    class="library-page-link">
+                    <i class="bi bi-chevron-left"></i>
+                    Previous
+                </a>
+            {% else %}
+                <span class="library-page-link disabled">
+                    <i class="bi bi-chevron-left"></i>
+                    Previous
+                </span>
+            {% endif %}
+
+            {% set window = 2 %}
+            {% set start_page = [1, page - window] | max %}
+            {% set end_page = [total_pages, page + window] | min %}
+
+            {% if start_page > 1 %}
+                <a
+                    href="/library?page=1&per_page={{ per_page }}"
+                    class="library-page-number">
+                    1
+                </a>
+                {% if start_page > 2 %}
+                    <span class="library-page-ellipsis">…</span>
+                {% endif %}
+            {% endif %}
+
+            {% for p in range(start_page, end_page + 1) %}
+                {% if p == page %}
+                    <span class="library-page-number active">{{ p }}</span>
+                {% else %}
+                    <a
+                        href="/library?page={{ p }}&per_page={{ per_page }}"
+                        class="library-page-number">
+                        {{ p }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                    <span class="library-page-ellipsis">…</span>
+                {% endif %}
+                <a
+                    href="/library?page={{ total_pages }}&per_page={{ per_page }}"
+                    class="library-page-number">
+                    {{ total_pages }}
+                </a>
+            {% endif %}
+
+            {% if page < total_pages %}
+                <a
+                    href="/library?page={{ page + 1 }}&per_page={{ per_page }}"
+                    class="library-page-link">
+                    Next
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            {% else %}
+                <span class="library-page-link disabled">
+                    Next
+                    <i class="bi bi-chevron-right"></i>
+                </span>
+            {% endif %}
+
+        </div>
+
+    </nav>
+
+    {% endif %}
 
     {% else %}
 
@@ -427,8 +513,10 @@ document.addEventListener("DOMContentLoaded", function () {
            Counter
            ------------------------------------------------------ */
 
-        count.textContent =
-            visibleBooks.length + " books";
+        if (count) {
+            count.textContent =
+                visibleBooks.length + " books";
+        }
 
     }
 
@@ -463,11 +551,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         button.dataset.direction;
 
 
-                    /*
-                     * Clicking the active button
-                     * toggles the direction.
-                     */
-
                     if (
                         button.classList.contains(
                             "active"
@@ -491,11 +574,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         "-" +
                         direction;
 
-
-                    /*
-                     * Only one sort button
-                     * can be active.
-                     */
 
                     document
                         .querySelectorAll(
@@ -541,8 +619,6 @@ document.addEventListener("DOMContentLoaded", function () {
             currentRatingFilter =
                 ratingFilter.value;
 
-
-            /* Active state */
 
             if (
                 currentRatingFilter === "all"
@@ -658,24 +734,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 ".library-cover img"
             );
 
-        /* ------------------------------------------------------
-           Title
-           ------------------------------------------------------ */
-
         libraryModalBookTitle.textContent =
             title;
 
 
-        /* ------------------------------------------------------
-           Author
-           ------------------------------------------------------ */
-
         libraryModalAuthor.textContent =
             author;
-
-        /* ------------------------------------------------------
-           Series
-           ------------------------------------------------------ */
 
         if (series) {
 
@@ -698,10 +762,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
 
-        /* ------------------------------------------------------
-           Rating
-           ------------------------------------------------------ */
-
         if (rating > 0) {
 
             libraryModalRating.textContent =
@@ -722,10 +782,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
 
-        /* ------------------------------------------------------
-           Upload date
-           ------------------------------------------------------ */
-
         if (uploaded) {
 
             libraryModalUploaded.textContent =
@@ -744,11 +800,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         }
 
-
-
-        /* ------------------------------------------------------
-           Cover
-           ------------------------------------------------------ */
 
         if (cover) {
 
@@ -775,27 +826,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
 
-        /* ------------------------------------------------------
-           Description
-           ------------------------------------------------------ */
-
         libraryModalDescription.textContent =
             description ||
             "No description available.";
 
 
-        /* ------------------------------------------------------
-           Show modal
-           ------------------------------------------------------ */
-
         getLibraryModal().show();
 
     }
 
-
-    /* ==========================================================
-       Book click handlers
-       ========================================================== */
 
     books.forEach(function (book) {
 
@@ -829,10 +868,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     });
 
-
-    /* ==========================================================
-       Initial render
-       ========================================================== */
 
     updateLibrary();
 
