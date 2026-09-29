@@ -20,7 +20,9 @@ gebruik dan een SSH-tunnel in plaats van LAN-toegang.
 import ipaddress
 import json
 import os
+import time
 
+import anyio
 import jwt
 import requests
 from fastapi import HTTPException, Request
@@ -48,6 +50,13 @@ PRIVATE_NETWORKS = [
     ipaddress.ip_network("fc00::/7"),
     ipaddress.ip_network("fe80::/10"),
 ]
+
+
+# Cache voor Cloudflare's publieke sleutels.
+# De sleutels veranderen zelden, dus we cachen ze een uur.
+_keys_cache: list = []
+_keys_cache_time: float = 0
+_KEYS_CACHE_TTL: int = 3600
 
 
 def _is_private_ip(host: str) -> bool:
@@ -78,22 +87,45 @@ def _has_cloudflare_headers(request: Request) -> bool:
 
 
 def _get_public_keys() -> list:
-    """Haal Cloudflare's publieke RSA-sleutels op voor JWT-verificatie."""
-    response = requests.get(CERTS_URL, timeout=10)
-    response.raise_for_status()
-    jwk_set = response.json()
+    """Haal Cloudflare's publieke RSA-sleutels op, met caching.
 
-    public_keys = []
+    De sleutels worden een uur gecached. Bij een netwerkfout wordt de
+    bestaande cache gebruikt als die er is.
+    """
+    global _keys_cache, _keys_cache_time
+
+    now = time.time()
+    if _keys_cache and (now - _keys_cache_time) < _KEYS_CACHE_TTL:
+        return _keys_cache
+
+    try:
+        response = requests.get(CERTS_URL, timeout=5)
+        response.raise_for_status()
+        jwk_set = response.json()
+    except requests.RequestException:
+        if _keys_cache:
+            return _keys_cache
+        raise
+
+    keys = []
     for key_dict in jwk_set["keys"]:
         public_key = jwt.algorithms.RSAAlgorithm.from_jwk(
             json.dumps(key_dict)
         )
-        public_keys.append(public_key)
-    return public_keys
+        keys.append(public_key)
+
+    _keys_cache = keys
+    _keys_cache_time = now
+    return keys
 
 
 def _verify_token(request: Request) -> bool:
-    """Valideer de CF_Authorization JWT."""
+    """Valideer de CF_Authorization JWT.
+
+    Deze functie is synchroon omdat hij HTTP-calls doet. Roep hem aan
+    vanuit een threadpool via anyio.to_thread.run_sync() om de event loop
+    niet te blokkeren.
+    """
     token = request.cookies.get("CF_Authorization")
 
     if not token:
@@ -140,13 +172,16 @@ async def validate_cloudflare(request: Request):
     3. Als de request GEEN CF-* headers heeft en van een privaat IP komt:
        LAN-toegang, sta toe zonder JWT.
     4. Anders: JWT verplicht (fail-safe voor publieke IPs).
+
+    De blocking HTTP-call in _verify_token wordt via anyio.to_thread
+    uitgevoerd zodat de asyncio event loop vrij blijft voor andere requests.
     """
     if CF_ACCESS_DISABLED:
         return True
 
     # Cloudflare-verkeer: JWT altijd verplicht.
     if _has_cloudflare_headers(request):
-        return _verify_token(request)
+        return await anyio.to_thread.run_sync(_verify_token, request)
 
     # LAN-verkeer: alleen als het bron-IP privaat is.
     client_host = request.client.host if request.client else ""
@@ -154,4 +189,4 @@ async def validate_cloudflare(request: Request):
         return True
 
     # Publiek IP zonder CF-headers: onbekend pad, eis JWT.
-    return _verify_token(request)
+    return await anyio.to_thread.run_sync(_verify_token, request)
