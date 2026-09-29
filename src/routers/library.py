@@ -14,7 +14,7 @@ templates = Jinja2Templates(
     directory="src/templates"
 )
 
-PER_PAGE_DEFAULT = 50
+PER_PAGE_DEFAULT = 100
 
 
 @router.get("/library")
