@@ -1,14 +1,13 @@
-# Dev-omgeving voor Pulsarr.
+# Pulsarr dev-omgeving.
 #
 # Gebruik:
 #   docker compose up --build
 #
-# Hot reload via volume mount van ./app. De container leest de code
-# van de host, dus een editor-save triggert direct een herstart.
+# Hot reload via volume mount van ./app. Een editor-save triggert
+# direct een herstart in de container.
 #
 # Voor productie: gebruik de gepubliceerde image
 #   ghcr.io/robwiesener/pulsarr:latest
-# (via Portainer of een aparte prod-compose, zonder volume mounts).
 
 services:
   pulsarr:
