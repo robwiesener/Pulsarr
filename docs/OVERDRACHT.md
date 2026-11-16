@@ -244,7 +244,7 @@ Zie sectie 15 voor de volledige lijst. De belangrijkste:
 7. Geen security headers (CSP, X-Frame-Options, etc.).
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
-10. .env niet in .gitignore.
+10. .env niet in .gitignore. → OPGELOST in commit na v04.
 11. Geen rate limiting.
 
 4.4 WAT GOED STAAT
@@ -778,7 +778,7 @@ SECURITY (zie ook sectie 4.3)
 7. Geen security headers (CSP, X-Frame-Options, etc.).
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
-10. .env niet in .gitignore.
+10. .env niet in .gitignore. → OPGELOST in commit na v04.
 11. Geen rate limiting.
 
 ARCHITECTUUR / ROBUUSTHEID
@@ -825,6 +825,10 @@ REST / KLEIN
 32. selectAll-referentie in result_management.html bestaat niet in
     de template (dode JS).
 33. library_storage_service: *.sqbpro in .dockerignore lijkt typefout.
+34. WAL/SHM-bestanden zaten per ongeluk in commit 532a711
+    (lokale geschiedenis, vóór push). Bewust niet opgeschoond:
+    API keys zijn geroteerd vóór de push, dus de bestanden
+    bevatten alleen ongeldige sleutels. .gitignore dekt ze nu.
 
 
 ==================================================
@@ -950,6 +954,8 @@ Deze keuzes zijn gemaakt en hoeven niet opnieuw ter discussie:
 - Geen rate limits aanpassen aan Zkr-niveau (Pulsarr is LAN-tool).
 - Geen screens-submappen (plat is voldoende voor 6 schermen).
 - Geen _helpers.py / _toggles.py in screens/ (pas bij noodzaak).
+- Git-geschiedenis niet opschonen voor per ongeluk gecommitte
+  WAL-bestanden. Mitigatie is key-rotatie vóór push.
 
 
 ==================================================
