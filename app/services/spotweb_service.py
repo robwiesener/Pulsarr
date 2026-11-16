@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 import xml.etree.ElementTree as ET
@@ -29,6 +30,43 @@ class SpotwebService:
 
         return url.rstrip("/") + "/api"
 
+    def _safe_error_message(self, exc: Exception) -> str:
+        """Verwijder volledige URL's uit exception-strings.
+
+        Requests-exceptions bevatten doorgaans de request-URL inclusief
+        ?apikey=... . Door de URL te vervangen door <url> voorkomen we
+        dat de API-key in de activity log of de config-UI belandt.
+        """
+        text = str(exc)
+        text = re.sub(r"https?://\S+", "<url>", text)
+        return text
+
+    def _parse_xml_response(
+        self,
+        response: requests.Response,
+        context: str,
+    ) -> ET.Element:
+        """Parse XML, met duidelijke fout bij HTML-respons (bv. loginpagina)."""
+        content_type = response.headers.get("Content-Type", "").lower()
+        body_start = response.text.lstrip()[:200].lower()
+
+        if (
+            "html" in content_type
+            or body_start.startswith("<!doctype html")
+            or body_start.startswith("<html")
+        ):
+            raise ValueError(
+                f"Spotweb returned HTML instead of XML ({context}). "
+                "Check Spotweb URL and API key under Configuration."
+            )
+
+        try:
+            return ET.fromstring(response.text)
+        except ET.ParseError as exc:
+            raise ValueError(
+                f"Invalid XML response ({context}): {exc}"
+            )
+
     def _log(
         self,
         level: str,
@@ -45,7 +83,6 @@ class SpotwebService:
             )
 
     def test_connection(self) -> tuple[bool, str]:
-
         settings = config_service.load()
 
         params = {
@@ -62,31 +99,23 @@ class SpotwebService:
                 params=params,
                 timeout=5,
             )
-
             response.raise_for_status()
 
-            root = ET.fromstring(response.text)
+            root = self._parse_xml_response(response, "test connection")
 
             if root.find("./channel") is not None:
-                return (
-                    True,
-                    "Spotweb connection test successful.",
-                )
+                return True, "Spotweb connection test successful."
 
-            return (
-                False,
-                "Spotweb connection failed.",
-            )
+            return False, "Spotweb connection failed."
 
         except Exception as exc:
-            return False, str(exc)
+            return False, self._safe_error_message(exc)
 
     def fetch_recent_books(
         self,
         offset: int = 0,
         limit: int = 100,
     ) -> list[SpotwebResult]:
-
         settings = config_service.load()
 
         params = {
@@ -103,7 +132,6 @@ class SpotwebService:
                 params=params,
                 timeout=30,
             )
-
             response.raise_for_status()
 
         except requests.RequestException as exc:
@@ -111,39 +139,24 @@ class SpotwebService:
                 f"Recent books request failed "
                 f"(offset={offset}, limit={limit})"
             )
-
-            print(
-                "SPOTWEB SERVICE: "
-                f"{message}: {exc}"
-            )
-
+            safe = self._safe_error_message(exc)
+            print(f"SPOTWEB SERVICE: {message}: {safe}")
             self._log(
                 level="ERROR",
                 message=message,
-                details=str(exc),
+                details=safe,
             )
-
             raise
 
         try:
-            root = ET.fromstring(response.text)
-        except ET.ParseError as exc:
-            message = (
-                f"Invalid XML response for recent books "
-                f"(offset={offset}, limit={limit})"
+            root = self._parse_xml_response(
+                response,
+                f"recent books offset={offset} limit={limit}",
             )
-
-            print(
-                "SPOTWEB SERVICE: "
-                f"{message}: {exc}"
-            )
-
-            self._log(
-                level="ERROR",
-                message=message,
-                details=str(exc),
-            )
-
+        except ValueError as exc:
+            message = str(exc)
+            print(f"SPOTWEB SERVICE: {message}")
+            self._log(level="ERROR", message=message)
             raise
 
         return self._parse_results(root)
@@ -153,11 +166,9 @@ class SpotwebService:
         pages: int = 10,
         page_size: int = 100,
     ) -> list[SpotwebResult]:
-
         results = []
 
         for page in range(pages):
-
             offset = page * page_size
 
             print(
@@ -197,7 +208,6 @@ class SpotwebService:
         query: str,
         limit: int = 100,
     ) -> list[SpotwebResult]:
-
         settings = config_service.load()
 
         params = {
@@ -218,21 +228,21 @@ class SpotwebService:
             response.raise_for_status()
 
         except requests.RequestException as exc:
+            safe = self._safe_error_message(exc)
             print(
                 "SPOTWEB SERVICE: "
                 f"Book search request failed "
-                f"(query={query!r}, limit={limit}): {exc}"
+                f"(query={query!r}, limit={limit}): {safe}"
             )
             raise
 
         try:
-            root = ET.fromstring(response.text)
-        except ET.ParseError as exc:
-            print(
-                "SPOTWEB SERVICE: "
-                f"Invalid XML response for book search "
-                f"(query={query!r}, limit={limit}): {exc}"
+            root = self._parse_xml_response(
+                response,
+                f"search query={query!r} limit={limit}",
             )
+        except ValueError as exc:
+            print(f"SPOTWEB SERVICE: {exc}")
             raise
 
         return self._parse_results(root)
@@ -241,7 +251,6 @@ class SpotwebService:
         self,
         guid: str,
     ) -> SpotwebResult | None:
-
         settings = config_service.load()
 
         params = {
@@ -259,21 +268,21 @@ class SpotwebService:
             response.raise_for_status()
 
         except requests.RequestException as exc:
+            safe = self._safe_error_message(exc)
             print(
                 "SPOTWEB SERVICE: "
                 f"Details request failed "
-                f"(guid={guid}): {exc}"
+                f"(guid={guid}): {safe}"
             )
             raise
 
         try:
-            root = ET.fromstring(response.text)
-        except ET.ParseError as exc:
-            print(
-                "SPOTWEB SERVICE: "
-                f"Invalid XML response for details "
-                f"(guid={guid}): {exc}"
+            root = self._parse_xml_response(
+                response,
+                f"details guid={guid}",
             )
+        except ValueError as exc:
+            print(f"SPOTWEB SERVICE: {exc}")
             raise
 
         results = self._parse_results(root)
