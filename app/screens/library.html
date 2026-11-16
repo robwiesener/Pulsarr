@@ -1,0 +1,549 @@
+{% extends "_layout.html" %}
+
+{% block title %}
+Library - Pulsarr
+{% endblock %}
+
+{% block content %}
+
+{# --------------------------------------------------------------
+   URL helpers voor sorteren en pagineren.
+   Elke link behoudt de andere filters.
+   -------------------------------------------------------------- #}
+
+{% macro sort_url(new_sort, new_direction) -%}
+/library?page=1&per_page={{ per_page }}&sort={{ new_sort }}&direction={{ new_direction }}{% if q %}&q={{ q|urlencode }}{% endif %}&rating={{ rating }}
+{%- endmacro %}
+
+{% macro page_url(p) -%}
+/library?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&direction={{ direction }}{% if q %}&q={{ q|urlencode }}{% endif %}&rating={{ rating }}
+{%- endmacro %}
+
+{# Volgende richting per sorteer-knop #}
+{% if sort == 'uploaded' %}
+    {% set uploaded_next_dir = 'desc' if direction == 'asc' else 'asc' %}
+{% else %}
+    {% set uploaded_next_dir = 'desc' %}
+{% endif %}
+
+{% if sort == 'title' %}
+    {% set title_next_dir = 'desc' if direction == 'asc' else 'asc' %}
+{% else %}
+    {% set title_next_dir = 'asc' %}
+{% endif %}
+
+{% if sort == 'author' %}
+    {% set author_next_dir = 'desc' if direction == 'asc' else 'asc' %}
+{% else %}
+    {% set author_next_dir = 'asc' %}
+{% endif %}
+
+
+<div class="page-header">
+
+    <form
+        method="get"
+        action="/library"
+        class="library-filters">
+
+        <input
+            type="hidden"
+            name="per_page"
+            value="{{ per_page }}">
+
+        <input
+            type="hidden"
+            name="sort"
+            value="{{ sort }}">
+
+        <input
+            type="hidden"
+            name="direction"
+            value="{{ direction }}">
+
+        <input
+            type="search"
+            name="q"
+            id="librarySearch"
+            class="search-box"
+            placeholder="Search title, author or series..."
+            value="{{ q }}"
+            autocomplete="off">
+
+        <div class="page-actions">
+
+            <!-- Date -->
+            <a
+                href="{{ sort_url('uploaded', uploaded_next_dir) }}"
+                class="library-sort-button {% if sort == 'uploaded' %}active{% endif %}"
+                title="Sort by upload date">
+
+                <i class="bi bi-calendar3 library-sort-icon"></i>
+
+            </a>
+
+            <!-- Title -->
+            <a
+                href="{{ sort_url('title', title_next_dir) }}"
+                class="library-sort-button {% if sort == 'title' %}active{% endif %}"
+                title="Sort by title">
+
+                <i class="bi bi-book library-sort-icon"></i>
+
+            </a>
+
+            <!-- Author -->
+            <a
+                href="{{ sort_url('author', author_next_dir) }}"
+                class="library-sort-button {% if sort == 'author' %}active{% endif %}"
+                title="Sort by author">
+
+                <i class="bi bi-person library-sort-icon"></i>
+
+            </a>
+
+            <!-- Rating filter -->
+
+            <select
+                name="rating"
+                id="libraryRatingFilter"
+                class="library-rating-filter {% if rating != 'all' %}active{% endif %}"
+                title="Filter by rating"
+                onchange="this.form.submit()">
+
+                <option value="all" {% if rating == 'all' %}selected{% endif %}>All</option>
+                <option value="none" {% if rating == 'none' %}selected{% endif %}>None</option>
+                <option value="1" {% if rating == '1' %}selected{% endif %}>★</option>
+                <option value="2" {% if rating == '2' %}selected{% endif %}>★★</option>
+                <option value="3" {% if rating == '3' %}selected{% endif %}>★★★</option>
+                <option value="4" {% if rating == '4' %}selected{% endif %}>★★★★</option>
+                <option value="5" {% if rating == '5' %}selected{% endif %}>★★★★★</option>
+
+            </select>
+
+        </div>
+
+    </form>
+
+    <!-- Library -->
+
+    {% if books %}
+
+    <div class="library-grid">
+
+        {% for book in books %}
+
+        <div
+            class="library-book"
+            role="button"
+            tabindex="0"
+
+            data-book-id="{{ book.id }}"
+            data-description="{{ book.description or '' }}"
+            data-series="{{ book.series or '' }}"
+            data-series-index="{{ book.series_index if book.series_index is not none else '' }}"
+            data-rating="{{ book.rating if book.rating is not none else '' }}"
+            data-uploaded="{{ book.uploaded_at.strftime('%d-%m-%Y') if book.uploaded_at else '' }}">
+
+            <div class="library-cover">
+
+                {% if book.local_cover_path %}
+                <img
+                    src="/library/cover/{{ book.id }}"
+                    alt="{{ book.title }}"
+                    loading="lazy">
+                {% endif %}
+
+            </div>
+
+            <div class="library-info">
+
+                <div class="library-top-row">
+
+                    {% if book.rating is not none %}
+                    <div
+                        class="library-rating"
+                        aria-label="Rating {{ book.rating }} out of 5">
+
+                        {% set rating_value = book.rating|round(0, 'floor')|int %}
+
+                        {{ "★" * rating_value }}{{ "☆" * (5 - rating_value) }}
+
+                    </div>
+                    {% endif %}
+
+                    {% if book.uploaded_at %}
+                    <div class="library-uploaded">
+                        {{ book.uploaded_at.strftime("%d-%m-%Y") }}
+                    </div>
+                    {% endif %}
+
+                </div>
+
+                <h5>
+                    {{ book.title }}
+                </h5>
+
+                <div class="library-author">
+                    {{ book.author }}
+                </div>
+
+                <div
+                    class="library-book-description"
+                    hidden>
+                    {{ book.description or '' }}
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    <!-- Pagination -->
+
+    {% if total_pages > 1 %}
+
+    <nav
+        class="library-pagination"
+        aria-label="Library pagination">
+
+        <div class="library-pagination-info">
+
+            Page {{ page }} of {{ total_pages }}
+            &middot;
+            {{ total }} book{{ "s" if total != 1 else "" }}
+
+        </div>
+
+        <div class="library-pagination-controls">
+
+            {% if page > 1 %}
+                <a
+                    href="{{ page_url(page - 1) }}"
+                    class="library-page-link">
+                    <i class="bi bi-chevron-left"></i>
+                    Previous
+                </a>
+            {% else %}
+                <span class="library-page-link disabled">
+                    <i class="bi bi-chevron-left"></i>
+                    Previous
+                </span>
+            {% endif %}
+
+            {% set window = 2 %}
+            {% set start_page = [1, page - window] | max %}
+            {% set end_page = [total_pages, page + window] | min %}
+
+            {% if start_page > 1 %}
+                <a
+                    href="{{ page_url(1) }}"
+                    class="library-page-number">
+                    1
+                </a>
+                {% if start_page > 2 %}
+                    <span class="library-page-ellipsis">…</span>
+                {% endif %}
+            {% endif %}
+
+            {% for p in range(start_page, end_page + 1) %}
+                {% if p == page %}
+                    <span class="library-page-number active">{{ p }}</span>
+                {% else %}
+                    <a
+                        href="{{ page_url(p) }}"
+                        class="library-page-number">
+                        {{ p }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                    <span class="library-page-ellipsis">…</span>
+                {% endif %}
+                <a
+                    href="{{ page_url(total_pages) }}"
+                    class="library-page-number">
+                    {{ total_pages }}
+                </a>
+            {% endif %}
+
+            {% if page < total_pages %}
+                <a
+                    href="{{ page_url(page + 1) }}"
+                    class="library-page-link">
+                    Next
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            {% else %}
+                <span class="library-page-link disabled">
+                    Next
+                    <i class="bi bi-chevron-right"></i>
+                </span>
+            {% endif %}
+
+        </div>
+
+    </nav>
+
+    {% endif %}
+
+    {% else %}
+
+    <div class="text-muted">
+
+        {% if q or rating != 'all' %}
+            No books match your filters.
+        {% else %}
+            No books in your library.
+        {% endif %}
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+<!-- Book detail modal -->
+
+<div
+    class="modal fade"
+    id="libraryBookModal"
+    tabindex="-1"
+    aria-hidden="true">
+
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <div class="library-modal-layout">
+
+                    <div class="library-modal-book">
+
+                        <div class="library-modal-cover">
+
+                            <img
+                                id="libraryModalCover"
+                                src=""
+                                alt="">
+
+                        </div>
+
+                        <div class="library-modal-info">
+
+                            <div
+                                id="libraryModalRating"
+                                class="library-modal-rating">
+                            </div>
+
+                            <h3 id="libraryModalBookTitle"></h3>
+
+                            <div
+                                id="libraryModalAuthor"
+                                class="library-modal-author">
+                            </div>
+
+                            <div
+                                id="libraryModalSeries"
+                                class="library-modal-series">
+                            </div>
+
+                            <div
+                                id="libraryModalUploaded"
+                                class="library-modal-uploaded">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="library-modal-description-panel">
+
+                        <div
+                            id="libraryModalDescription"
+                            class="library-modal-description">
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+
+    /* ==========================================================
+       Search-while-typing (debounced server-side search)
+       ========================================================== */
+
+    const searchInput = document.getElementById("librarySearch");
+
+    if (searchInput) {
+
+        // Zet cursor aan het einde na een reload, zodat
+        // de gebruiker verder kan typen waar hij gebleven was.
+        if (searchInput.value) {
+            searchInput.focus();
+            const len = searchInput.value.length;
+            searchInput.setSelectionRange(len, len);
+        }
+
+        let debounceTimer;
+
+        searchInput.addEventListener("input", function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                this.form.submit();
+            }, 400);
+        });
+    }
+
+    /* ==========================================================
+       Book details modal
+
+       Alle filter- en sorteerlogica loopt nu via de server.
+       Alleen de modal blijft client-side.
+       ========================================================== */
+
+    const books =
+        Array.from(
+            document.querySelectorAll(".library-book")
+        );
+
+    const modalElement =
+        document.getElementById("libraryBookModal");
+
+    function getLibraryModal() {
+        return bootstrap.Modal.getOrCreateInstance(modalElement);
+    }
+
+    const libraryModalBookTitle =
+        document.getElementById("libraryModalBookTitle");
+
+    const libraryModalCover =
+        document.getElementById("libraryModalCover");
+
+    const libraryModalAuthor =
+        document.getElementById("libraryModalAuthor");
+
+    const libraryModalSeries =
+        document.getElementById("libraryModalSeries");
+
+    const libraryModalRating =
+        document.getElementById("libraryModalRating");
+
+    const libraryModalUploaded =
+        document.getElementById("libraryModalUploaded");
+
+    const libraryModalDescription =
+        document.getElementById("libraryModalDescription");
+
+    function openLibraryBook(book) {
+
+        const title =
+            book.querySelector(".library-info h5")
+                ?.textContent.trim() || "";
+
+        const author =
+            book.querySelector(".library-author")
+                ?.textContent.trim() || "";
+
+        const series = book.dataset.series || "";
+        const seriesIndex = book.dataset.seriesIndex || "";
+        const description = book.dataset.description || "";
+        const rating = Number(book.dataset.rating || 0);
+        const uploaded = book.dataset.uploaded || "";
+
+        const cover = book.querySelector(".library-cover img");
+
+        libraryModalBookTitle.textContent = title;
+        libraryModalAuthor.textContent = author;
+
+        if (series) {
+            libraryModalSeries.textContent =
+                seriesIndex ? `${series} (${seriesIndex})` : series;
+            libraryModalSeries.style.display = "";
+        } else {
+            libraryModalSeries.textContent = "";
+            libraryModalSeries.style.display = "none";
+        }
+
+        if (rating > 0) {
+            libraryModalRating.textContent =
+                "★".repeat(rating) + "☆".repeat(5 - rating);
+            libraryModalRating.style.display = "";
+        } else {
+            libraryModalRating.textContent = "";
+            libraryModalRating.style.display = "none";
+        }
+
+        if (uploaded) {
+            libraryModalUploaded.textContent = uploaded;
+            libraryModalUploaded.style.display = "";
+        } else {
+            libraryModalUploaded.textContent = "";
+            libraryModalUploaded.style.display = "none";
+        }
+
+        if (cover) {
+            libraryModalCover.src = cover.src;
+            libraryModalCover.alt = title;
+            libraryModalCover.style.display = "";
+        } else {
+            libraryModalCover.src = "";
+            libraryModalCover.alt = "";
+            libraryModalCover.style.display = "none";
+        }
+
+        libraryModalDescription.textContent =
+            description || "No description available.";
+
+        getLibraryModal().show();
+    }
+
+    books.forEach(function (book) {
+
+        book.addEventListener("click", function () {
+            openLibraryBook(book);
+        });
+
+        book.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openLibraryBook(book);
+            }
+        });
+
+    });
+
+});
+
+</script>
+
+{% endblock %}
