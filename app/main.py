@@ -12,6 +12,7 @@ from app.screens.library_routes import router as library_router
 from app.screens.activity_log_routes import router as activity_log_router
 
 from app.cloudflare import validate_cloudflare
+from app.security.csrf_middleware import CSRFMiddleware
 from app.security.headers import SecurityHeadersMiddleware
 from app.security.exception_handler import generic_exception_handler
 
@@ -60,6 +61,7 @@ app = FastAPI(
 
 app.add_exception_handler(Exception, generic_exception_handler)
 
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 

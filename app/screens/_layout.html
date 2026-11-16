@@ -139,5 +139,24 @@ menuOverlay.addEventListener("click", closeMobileMenu);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
 
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    var token = m ? decodeURIComponent(m[1]) : "";
+    if (!token) return;
+    document.querySelectorAll("form").forEach(function(form) {
+        var method = (form.getAttribute("method") || "get").toLowerCase();
+        if (method !== "post") return;
+        if (form.querySelector('input[name="csrf_token"]')) return;
+        var input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "csrf_token";
+        input.value = token;
+        form.appendChild(input);
+    });
+});
+</script>
+
 </body>
 </html>
