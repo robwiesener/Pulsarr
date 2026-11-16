@@ -23,3 +23,9 @@ docker-test/
 /Library/
 # Local Pulsarr library (dev mount)
 library/
+
+# SQLite WAL/SHM (volatile, nooit committen)
+config/*.db-wal
+config/*.db-shm
+*.db-wal
+*.db-shm
