@@ -3,20 +3,17 @@ from datetime import timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 
 from src.db.database import get_session
 from src.models.activity_log import ActivityLog
 from src.services.activity_log_service import activity_log_service
+from src.templates import templates
 
 
 router = APIRouter()
 
-templates = Jinja2Templates(
-    directory="src/templates"
-)
 
 
 def to_local_time(value):

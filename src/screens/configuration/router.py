@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from sqlmodel import Session, select
 
@@ -11,10 +10,10 @@ from src.db.database import get_session
 from src.models.library import Library
 from src.services.calibre_service import calibre_service
 from src.services.library_service import library_service
+from src.templates import templates
 
 router = APIRouter()
 
-templates = Jinja2Templates(directory="src/templates")
 
 
 @router.get("/configuration")

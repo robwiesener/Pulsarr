@@ -30,7 +30,6 @@ SQLite database
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Query
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from sqlmodel import Session, select, func
 
@@ -39,12 +38,10 @@ from src.models.enums import Status
 from src.db.database import get_session
 from src.services.wishlist_service import wishlist_service
 from src.services.background_service import background_service
+from src.templates import templates
 
 router = APIRouter()
 
-templates = Jinja2Templates(
-    directory="src/templates"
-)
 
 @router.get("/")
 def books(

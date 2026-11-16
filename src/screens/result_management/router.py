@@ -1,18 +1,15 @@
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from sqlmodel import Session
 
 from src.db.database import get_session
 from src.services.downloads_service import downloads_service
+from src.templates import templates
 
 router = APIRouter()
 
 
-templates = Jinja2Templates(
-    directory="src/templates"
-)
 
 @router.get("/result-management")
 def result_management(

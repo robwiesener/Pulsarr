@@ -1,20 +1,17 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Query
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, select, func, or_
 from pathlib import Path
 
 from src.db.database import get_session
 from src.models.library import Library
+from src.templates import templates
 
 
 router = APIRouter()
 
-templates = Jinja2Templates(
-    directory="src/templates"
-)
 
 PER_PAGE_DEFAULT = 100
 
