@@ -20,6 +20,8 @@ v02 → v03
 
 v03 → v04
 - Bestandsstructuur: src/ → app/ (Zkr-conventie).
+- Dev-flow: docker-compose.yml, geen .venv meer.
+- GitHub Actions: build bij elke push naar main (latest + sha-).
 - Screens platgeslagen: app/screens/<naam>.html +
   app/screens/<naam>_routes.py (geen submappen meer).
 - Gedeelde Jinja2Templates in app/templates.py.
@@ -688,13 +690,33 @@ Let op: *.sqbpro lijkt een typefout; controleer.
 LET OP: .env-bestanden zijn NIET expliciet ignored.
 
 GitHub Actions: .github/workflows/docker.yml
-- Trigger: push tags v*
-- Permissions: contents:read, packages:write
-- Image: ghcr.io/robwiesener/pulsarr
-- Platforms: linux/amd64, linux/arm64
-- Build via Buildx.
+- Trigger: push naar main, push tags v*, pull_request naar main,
+  workflow_dispatch.
+- Permissions: contents:read, packages:write.
+- Image: ghcr.io/robwiesener/pulsarr.
+- Platforms: linux/amd64, linux/arm64.
+- Build via Buildx, met GHA cache (cache-from/cache-to).
 - Actions: checkout@v6, setup-buildx-action@v3, login-action@v4,
   metadata-action@v6, build-push-action@v7.
+
+Gegenereerde image-tags (via docker/metadata-action):
+- Push naar main       → latest, sha-<sha>
+- Push tag v0.9.8      → 0.9.8, 0.9, latest, sha-<sha>
+- Pull request #5      → pr-5 (build, geen push)
+
+Lokaal ontwikkelen: docker-compose.yml (dev)
+- Build: docker compose up --build
+- Hot reload via volume mount van ./app
+- Config in ./config, library in ./library (beide gemount)
+- CF_ACCESS_DISABLED=1 in dev (auth uit)
+- Container: Pulsarr-Dev, poort 8010
+- Geen .venv op de host meer nodig
+
+Productie: gepubliceerde image via Portainer of prod-compose
+- ghcr.io/robwiesener/pulsarr:latest (of :0.9.8 voor vast)
+- Geen volume mounts voor app/ (code zit in de image)
+- Config en library wel mounten
+- workers=1 impliciet, NIET aanpassen
 
 
 ==================================================
@@ -782,7 +804,8 @@ OPERATIONEEL
 REST / KLEIN
 ------------
 31. src/db/downloads.py (dode code) — VERLEDEN TIJD, verwijderd in
-    v04.
+    v04. (Dev-flow: .venv is niet meer nodig; ontwikkelen via
+    docker compose.)
 32. selectAll-referentie in result_management.html bestaat niet in
     de template (dode JS).
 33. library_storage_service: *.sqbpro in .dockerignore lijkt typefout.
@@ -833,6 +856,9 @@ STAP 1 — BESTANDSSTRUCTUUR ✅ VOLTOOID
 - app/templates.py (gedeelde Jinja2Templates)
 - dockerfile aangepast (COPY app, uvicorn app.main:app)
 - src/db/downloads.py verwijderd
+- docker-compose.yml (dev) toegevoegd
+- .venv op de host verwijderd
+- GitHub Actions triggert nu ook op push naar main
 
 STAP 2 — KLEINE BUGS ✅ DEELS VOLTOOID
 ---------------------------------------

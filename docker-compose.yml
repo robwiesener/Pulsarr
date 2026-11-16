@@ -1,0 +1,36 @@
+# Dev-omgeving voor Pulsarr.
+#
+# Gebruik:
+#   docker compose up --build
+#
+# Hot reload via volume mount van ./app. De container leest de code
+# van de host, dus een editor-save triggert direct een herstart.
+#
+# Voor productie: gebruik de gepubliceerde image
+#   ghcr.io/robwiesener/pulsarr:latest
+# (via Portainer of een aparte prod-compose, zonder volume mounts).
+
+services:
+  pulsarr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pulsarr:dev
+    container_name: Pulsarr-Dev
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./app:/app/app
+      - ./config:/config
+      - ./library:/library
+    environment:
+      - TZ=Europe/Amsterdam
+      - PULSARR_CONFIG_DIR=/config
+      - PULSARR_LIBRARY_ROOT=/library
+      - CF_ACCESS_DISABLED=1
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8010
+      --reload
+      --reload-dir /app/app

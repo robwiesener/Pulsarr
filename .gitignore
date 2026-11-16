@@ -21,3 +21,5 @@ docker-test/
 
 # Local Pulsarr library (alleen in repo-root)
 /Library/
+# Local Pulsarr library (dev mount)
+library/
