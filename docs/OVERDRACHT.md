@@ -1,19 +1,42 @@
-PULSARR — PROJECTOVERDRACHT v03
-(vervangt v02; opgesteld na volledige code-inventarisatie)
+PULSARR — PROJECTOVERDRACHT v04
+(vervangt v03; bijgewerkt na app/-rename, platte screens/ en Spotweb-hardening)
+
+Laatst bijgewerkt: 16 november 2026
+Huidige code-tag: v0.9.7 + 3 commits (b2fafaa)
 
 
 ==================================================
-0. GEBRUIK VAN DIT DOCUMENT
+0. CHANGELOG EN GEBRUIK VAN DIT DOCUMENT
 ==================================================
 
+CHANGELOG
+---------
+v02 → v03
+- Security-hoofdstuk toegevoegd (Cloudflare Access + LAN-bypass).
+- Library-functionaliteit en -sync uitgebreid beschreven.
+- Zoeklogica herschreven (full/title/author/background).
+- Openstaande-punten-lijst geconsolideerd.
+- Delta-sectie toegevoegd.
+
+v03 → v04
+- Bestandsstructuur: src/ → app/ (Zkr-conventie).
+- Screens platgeslagen: app/screens/<naam>.html +
+  app/screens/<naam>_routes.py (geen submappen meer).
+- Gedeelde Jinja2Templates in app/templates.py.
+- Spotweb-hardening: _parse_xml_response en _safe_error_message.
+- Roadmap naar Zkr-alignment toegevoegd (sectie 17).
+- BEWUST NIET overnemen uit Zkr toegevoegd (sectie 18).
+- Openstaand punt src/db/downloads.py vervallen (weg).
+- Exception-lek deels opgelost (Spotweb-kant).
+
+GEBRUIK
+-------
 Dit document is de zelfstandige, actuele overdracht van het Pulsarr-project.
-
 Gebruik het als technische context voor verdere ontwikkeling. Ga ervan uit
 dat onderstaande keuzes bewust zijn gemaakt. Verander bestaande architectuur
 of functionaliteit niet zonder expliciete opdracht.
 
-Belangrijkste wijzigingen t.o.v. v02 staan in sectie 17 (Delta).
-Alle openstaande verbeterpunten staan gebundeld in sectie 15.
+Bij twijfel: eerst de daadwerkelijke code lezen, niet aannemen.
 
 
 ==================================================
@@ -58,12 +81,11 @@ FRONTEND
 - Jinja2 server-side templates
 - Bootstrap 5.3.7 (CSS + JS bundle) via CDN
 - Bootstrap Icons 1.11.3 via CDN
-- Eigen CSS-laag: src/static/css/pulsarr.css
+- Eigen CSS-laag: app/static/css/pulsarr.css
 - Kleine inline <script>-blokken per template (geen bundler, geen SPA)
 
-BELANGRIJK: De UI is géén SPA. Filters, sortering en paginatie zijn
-grotendeels server-side; detailmodals en sommige filters zijn client-side.
-Per pagina verschilt dit (zie sectie 12).
+De UI is géén SPA. Filters, sortering en paginatie zijn grotendeels
+server-side; detailmodals en sommige filters zijn client-side.
 
 BACKEND
 -------
@@ -77,20 +99,23 @@ BACKEND
 - Pillow (cover-thumbnails)
 - python-multipart (FastAPI Form())
 
-Zie requirements.txt. Op dit moment zijn dependencies NIET gepind
+Zie requirements.txt. Dependencies zijn op dit moment NIET gepind
 (openstaand punt, zie sectie 15).
 
 ARCHITECTUURPRINCIPE
 --------------------
-- Routers: HTTP/UI/forms/redirects. Geen business- of database-logica.
-- Services: business logic, database-interactie, externe API's.
-- Models: SQLModel-tabellen en platte dataclasses.
-- Config: persistent in config/config.json.
-- Background: asyncio-workers in BackgroundService.
+- Routers (app/screens/*_routes.py): HTTP/UI/forms/redirects.
+  Geen business- of database-logica.
+- Services (app/services/): business logic, database-interactie,
+  externe API's.
+- Models (app/models/): SQLModel-tabellen en platte dataclasses.
+- Config (app/config/): persistent in config/config.json.
+- Background (app/services/background_service.py): asyncio-workers.
+- Templates (app/screens/*.html + _layout.html): server-side rendering.
 
 LET OP: In de praktijk wijkt een aantal routers af van dit principe
-(directe DB-queries in activity_log.py, library.py, wishlist.py).
-Dit is bewust zo gelaten; zie sectie 17 (Delta) en 15 (openstaand).
+(directe DB-queries in activity_log_routes.py, library_routes.py,
+wishlist_routes.py). Bewust zo gelaten. Zie sectie 15.
 
 
 ==================================================
@@ -101,11 +126,11 @@ Globale flow:
 
 Browser
    ↓  (Cloudflare Access JWT of LAN-bypass)
-FastAPI main.py
+FastAPI app/main.py
    ↓  Depends(validate_cloudflare)
-Router
+Router (app/screens/<naam>_routes.py)
    ↓
-Service
+Service (app/services/<naam>_service.py)
    ↓
 SQLModel / SQLite
    ↓
@@ -114,31 +139,38 @@ Externe services:
    - SABnzbd
    - Calibre
 
+Screens-patroon (Zkr-conventie):
+- Eén scherm = één router + één template, naast elkaar in app/screens/.
+- Router: <naam>_routes.py
+- Template: <naam>.html
+- Gedeelde layout: app/screens/_layout.html
+- Gedeelde Jinja2Templates: app/templates.py
+
+Dit voorkomt naamconflicten (routers/settings.py vs config/settings.py)
+en maakt "welke template hoort bij welke route" expliciet.
+
 Services en verantwoordelijkheden:
-
-wishlist_service.py         → wishlist CRUD + zoeklogica (book/title/author)
-bookmatch_service.py        → matching-helpers (geen DB)
-spotweb_service.py          → Spotweb API-client
-sabnzbd_service.py          → SABnzbd API-client
-calibre_service.py          → Calibre OPDS-client
-library_service.py          → sync tussen Calibre en Library-tabel
-library_storage_service.py  → covers downloaden en verkleinen
-downloads_service.py        → result-management acties + downloadstatus
-background_service.py       → periodieke workers
-activity_log_service.py     → logging-centralisatie
+- wishlist_service.py         → wishlist CRUD + zoeklogica
+- bookmatch_service.py        → matching-helpers (geen DB)
+- spotweb_service.py          → Spotweb API-client
+- sabnzbd_service.py          → SABnzbd API-client
+- calibre_service.py          → Calibre OPDS-client
+- library_service.py          → sync Calibre ↔ Library-tabel
+- library_storage_service.py  → covers downloaden en verkleinen
+- downloads_service.py        → result-management + downloadstatus
+- background_service.py       → periodieke workers
+- activity_log_service.py     → logging-centralisatie
 
 
 ==================================================
-4. SECURITY (nieuw t.o.v. v02)
+4. SECURITY
 ==================================================
-
-Dit is de grootste wijziging sinds v02. Lees deze sectie aandachtig voordat
-je routes, configuratie of logging aanpast.
 
 4.1 TOEGANGSMODEL
 -----------------
-Bestand: src/cloudflare.py
-Koppeling: alle routers in src/main.py krijgen `dependencies=[Depends(validate_cloudflare)]`.
+Bestand: app/cloudflare.py
+Koppeling: alle routers in app/main.py krijgen
+`dependencies=[Depends(validate_cloudflare)]`.
 
 Twee toegangspaden:
 
@@ -146,7 +178,8 @@ A. Via Cloudflare Access (mTLS + Access)
    - cloudflared voegt CF-* headers toe.
    - De CF_Authorization JWT (cookie of Cf-Access-Jwt-Assertion header)
      wordt gevalideerd tegen Cloudflare's publieke RSA-sleutels.
-   - Sleutels worden opgehaald via /cdn-cgi/access/certs en 1 uur gecached.
+   - Sleutels worden opgehaald via /cdn-cgi/access/certs en 1 uur
+     gecached.
    - Audience-claim wordt gecontroleerd (CF_ACCESS_AUD).
 
 B. Via LAN-bypass
@@ -156,141 +189,117 @@ B. Via LAN-bypass
    - Request wordt toegestaan zonder JWT.
 
 Fail-safe: publiek IP zonder CF-headers → JWT verplicht.
-
 Dev-modus: CF_ACCESS_DISABLED=1 → auth volledig uit.
 
 Configuratie via env vars:
-  CF_ACCESS_TEAM_DOMAIN   (default: placeholder "https://<jouw-team>.cloudflareaccess.com")
-  CF_ACCESS_AUD           (default: placeholder "<jouw-aud-tag>")
-  CF_ACCESS_DISABLED      (default: "0" → auth AAN)
+  CF_ACCESS_TEAM_DOMAIN   (placeholder default)
+  CF_ACCESS_AUD           (placeholder default)
+  CF_ACCESS_DISABLED      (default "0" → auth AAN)
 
-Bewust geaccepteerde risico's (staan ook in de module-docstring):
-- Iedereen op het LAN kan Pulsarr zonder login gebruiken. Dit is bewust.
-- De CF-header-detectie is de ENIGE scheiding tussen "via Cloudflare" en
-  "LAN". Als cloudflared om wat voor reden dan ook CF-headers niet
-  doorgeeft (verkeerde config, proxy-rewrite, etc.), valt CF-verkeer
-  terug op LAN-bypass (bron-IP is dan 127.0.0.1). Dit is een reëel
-  operationeel risico dat de beheerder moet kennen.
+Bewust geaccepteerde risico's (zie module-docstring):
+- Iedereen op het LAN kan Pulsarr zonder login gebruiken.
+- CF-header-detectie is de ENIGE scheiding tussen "via Cloudflare" en
+  "LAN". Als cloudflared CF-headers niet doorgeeft, valt CF-verkeer
+  terug op LAN-bypass (bron-IP = 127.0.0.1).
 
-Niet aanwezig (bewust of openstaand):
-- Geen `iss`-claim-validatie (alleen audience + signature).
-- Geen CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy.
-- Geen CSRF-tokens op POST-routes.
-- Geen rate limiting.
-- Geen sessie-cookie of logout (CF regelt dit buiten de app).
+4.2 ERROR-SANITIZATION (nieuw in v04)
+--------------------------------------
+Bestand: app/services/spotweb_service.py
 
-4.2 BEKENDE LEKPUNTEN IN DE HUIDIGE CODE
-----------------------------------------
-Deze zijn nog NIET opgelost. Ze staan hier zodat een nieuwe chat ze niet
-opnieuw hoeft te ontdekken.
+_safe_error_message(exc):
+- Strip't volledige URL's uit exception-strings (regex `https?://\S+`
+  → `<url>`).
+- Reden: requests-exceptions bevatten de request-URL inclusief
+  ?apikey=... . Zonder sanitizing zou de key in de activity log en de
+  config-UI kunnen belanden.
+- Gebruikt in test_connection, fetch_recent_books, search_books,
+  get_details.
 
-1. API-key-lek via exception-strings (HOOG)
-   - sabnzbd_service.test_connection()  → return False, str(exc)
-   - sabnzbd_service.add_url()          → str(exc) gelogd én geretourneerd
-   - spotweb_service.test_connection()  → return False, str(exc)
-   - spotweb_service._log(..., details=str(exc))
-   - wishlist_service._log(..., details=f"...query={query!r}: {exc}")
+_parse_xml_response(response, context):
+- Detecteert HTML-respons (Content-Type of body-start).
+- Geeft een duidelijke ValueError: "Spotweb returned HTML instead of
+  XML (context). Check Spotweb URL and API key under Configuration."
+- Vervangt de verwarrende "junk after document element"-fout.
+- Gebruikt in alle vier de API-calls.
 
-   Requests-exceptions bevatten doorgaans de volledige request-URL,
-   inclusief ?apikey=...
+Status van het API-key-lek:
+- Spotweb-kant: OPGELOST (via _safe_error_message + _parse_xml_response).
+- SABnzbd-kant: NOG OPEN. sabnzbd_service.py gebruikt nog steeds
+  `return False, str(exc)` in test_connection, add_url en
+  get_download_status. Te fixen in de security-fase (sectie 17).
 
-   Deze strings belanden in:
-   - de config-UI (alert-blokken)
-   - de activity log (/activity-log, kolom Details + data-search)
-   - de DOM (data-attributen)
+4.3 OPENSTAANDE SECURITY-PUNTEN
+--------------------------------
+Zie sectie 15 voor de volledige lijst. De belangrijkste:
 
-   Mitigatie die in het document wordt voorgesteld (niet nu uitvoeren):
-   een helper die vóór logging/return de URL uit de exception strip't.
+1. SABnzbd exception-lek (analoog aan Spotweb-fix).
+2. API-keys in config-HTML (value-attribuut).
+3. CDN zonder SRI.
+4. Destructieve acties zonder tweede bevestiging (sync_calibre,
+   bulk-download).
+5. Geen CSRF op POST-routes.
+6. Geen pad-whitelist in /library/cover/{book_id}.
+7. Geen security headers (CSP, X-Frame-Options, etc.).
+8. Geen iss-claim-validatie in CF JWT-check.
+9. Docker draait als root.
+10. .env niet in .gitignore.
+11. Geen rate limiting.
 
-2. API-keys in de config-HTML (HOOG)
-   - configuration/index.html: value="{{ settings.spotweb.api_key }}"
-     en value="{{ settings.sabnzbd.api_key }}".
-   - type="password" maskeert alleen visueel.
-   - Aanbevolen patroon: placeholder "********" tonen en bij lege submit
-     de bestaande waarde behouden.
-
-3. CDN-loading zonder Subresource Integrity (MIDDEL)
-   - Bootstrap CSS/JS en Bootstrap Icons worden via jsDelivr geladen
-     zonder integrity="sha384-..." en zonder crossorigin.
-   - Als jsDelivr gecompromitteerd raakt, draait er vreemde JS in de
-     context van Pulsarr — met toegang tot alle API keys in de DOM.
-   - Privacy: elke page load doet een request naar jsDelivr.
-   - Aanbevolen: SRI-hashes toevoegen OF Bootstrap vendoren in
-     src/static/vendor/.
-
-4. Destructieve acties zonder extra bevestiging
-   - /configuration "sync_calibre" verwijdert boeken die niet meer in
-     Calibre staan (library_service.sync doet session.delete voor alles
-     wat niet meer in de Calibre-feed zit).
-   - Eén verkeerde POST wist de library. Geen tweede bevestigingsstap.
-   - /result-management/download start direct SABnzbd-jobs (geen modal).
-
-5. Geen CSRF-bescherming op POST-routes
-   - Alle POST-forms in alle templates.
-   - Met CF Access + LAN-bypass is het risico beperkt tot LAN-gebruikers
-     en tot CSRF vanaf een gecompromitteerde site die de gebruiker
-     bezoekt terwijl hij op het LAN is.
-
-6. pad-validatie /library/cover/{book_id}
-   - Serveert local_cover_path uit de DB, alleen met is_file()-check.
-   - Pad komt uit eigen sync, dus risico is beperkt, maar defense-in-depth
-     (whitelist tegen library_dir) zou passen.
-
-7. XML-parsing (ET.fromstring) op Calibre-OPDS en Spotweb-RSS
-   - Python's ElementTree blokkeert external entities standaard, maar is
-     vatbaar voor "billion laughs" / quadratic blowup.
-   - Beide bronnen zijn vertrouwd in self-hosted context.
-   - Dit is een BEWUST GEACCEPTEERD RISICO.
-
-8. Test-scripts met hardcoded IP en dode imports
-   - test_spotweb_rss.py: SPOTWEB_URL = "http://192.168.1.30:9080/api"
-   - test_prowlarr.py: importeert src.services.prowlarr_service
-     (bestaat niet meer in de huidige codebase)
-   - test_spotweb_download.py: RECORD_ID = 4 (dev-script)
-   - Niet productie-kritisch; opruimen vóór publicatie.
-
-4.3 SECURITY-DEFAULTS DIE GOED STAAN
-------------------------------------
-- CF_ACCESS_DISABLED default is "0" (auth AAN).
+4.4 WAT GOED STAAT
+------------------
+- CF_ACCESS_DISABLED default "0" (auth AAN).
 - .gitignore sluit config/config.json en config/*.db uit.
-- .dockerignore sluit config/, data/, library/ uit → geen secrets in image.
+- .dockerignore sluit config/, data/, library/ uit.
 - config_service.save() zet 0o600 op config.json (Unix only).
-- Env-var overrides voor SPOTWEB_API_KEY en SABNZBD_API_KEY (Docker secrets).
-- Jinja2 auto-escape staat aan (FastAPI default); templates gebruiken
-  textContent in JS, niet innerHTML.
-- encodeURIComponent op doorgegeven auteur in wishlist "same author"-link.
-- Search-while-typing in library is server-side met parameterized ilike
-  (geen SQL injection).
+- Env-var overrides voor SPOTWEB_API_KEY en SABNZBD_API_KEY.
+- Jinja2 auto-escape staat aan.
+- Templates gebruiken textContent (niet innerHTML) in JS.
+- encodeURIComponent op doorgegeven auteur.
+- Server-side debounced search met parameterized ilike.
+- Spotweb-foutmeldingen gesanitizeerd (v04).
 
 
 ==================================================
 5. BESTANDSSTRUCTUUR
 ==================================================
 
-src/
+app/
+├── __init__.py
 ├── main.py
-├── cloudflare.py                       # Cloudflare Access + LAN-bypass
+├── cloudflare.py
+├── templates.py                          # gedeelde Jinja2Templates
 ├── config/
-│   ├── config_service.py               # load/save config.json
-│   └── settings.py                     # Pydantic modellen
+│   ├── __init__.py
+│   ├── config_service.py
+│   └── settings.py
 ├── db/
-│   ├── database.py                     # engine + get_session
-│   └── downloads.py                    # DODE CODE (zie sectie 15)
+│   ├── __init__.py
+│   └── database.py
 ├── models/
-│   ├── activity_log.py                 # ActivityLog tabel
-│   ├── book.py                         # Book tabel (wishlist)
-│   ├── enums.py                        # Status / SearchType / DownloadStatus
-│   ├── library.py                      # Library tabel (Calibre master)
-│   ├── search_result_record.py         # SearchResultRecord tabel
-│   ├── search_result.py                # platte dataclass
-│   └── spotweb_result.py               # platte dataclass
-├── routers/
+│   ├── __init__.py
 │   ├── activity_log.py
+│   ├── book.py
+│   ├── enums.py
 │   ├── library.py
-│   ├── result_management.py
-│   ├── settings.py
-│   └── wishlist.py
+│   ├── search_result.py
+│   ├── search_result_record.py
+│   └── spotweb_result.py
+├── screens/
+│   ├── __init__.py
+│   ├── _layout.html                     # base layout
+│   ├── activity_log.html
+│   ├── activity_log_routes.py
+│   ├── configuration.html
+│   ├── configuration_routes.py
+│   ├── library.html
+│   ├── library_routes.py
+│   ├── result_management.html
+│   ├── result_management_routes.py
+│   ├── wishlist.html
+│   ├── wishlist_form.html
+│   └── wishlist_routes.py
 ├── services/
+│   ├── __init__.py
 │   ├── activity_log_service.py
 │   ├── background_service.py
 │   ├── bookmatch_service.py
@@ -301,25 +310,16 @@ src/
 │   ├── sabnzbd_service.py
 │   ├── spotweb_service.py
 │   └── wishlist_service.py
-├── static/
-│   ├── css/pulsarr.css
-│   └── img/logo.svg
-└── templates/
-    ├── activity_log/index.html
-    ├── configuration/index.html
-    ├── library/index.html
-    ├── pulsarr/index.html              # base layout
-    ├── result_management/index.html
-    └── wishlist/
-        ├── index.html
-        └── form.html
+└── static/
+    ├── css/pulsarr.css
+    └── img/logo.svg
 
-Overige bestanden (project-root):
-- Dockerfile
+Project-root:
+- dockerfile                              # COPY app, uvicorn app.main:app
 - .dockerignore
 - .gitignore
 - requirements.txt
-- test_*.py (dev-scripts, zie sectie 4.2 punt 8)
+- test_*.py                               # dev-scripts (zie sectie 15)
 
 
 ==================================================
@@ -328,8 +328,8 @@ Overige bestanden (project-root):
 
 Bron van waarheid: config/config.json
 Map configureerbaar via PULSARR_CONFIG_DIR (default "config/").
-Pad naar library en downloads configureerbaar via StorageSettings +
-PULSARR_LIBRARY_ROOT (zie library_storage_service.py).
+Library en downloads configureerbaar via StorageSettings +
+PULSARR_LIBRARY_ROOT.
 
 ConfigService:
 - load(): leest config.json → AppSettings; env-var overrides voor
@@ -337,23 +337,24 @@ ConfigService:
 - save(): schrijft AppSettings.model_dump() als JSON, 0o600 rechten.
 
 AppSettings (Pydantic):
-- spotweb        : url, api_key
-- sabnzbd        : url, api_key, category (default "books")
-- calibre        : url
-- background     : download_status_interval (>=15s),
-                   wishlist_search_interval (>=300s)
-- wishlist       : description_search_keywords (default "pakket, boekenpakket")
-- storage        : library_dir ("Library"), downloads_dir ("Downloads"),
-                   root_dir (".")
+- spotweb     : url, api_key
+- sabnzbd     : url, api_key, category (default "books")
+- calibre     : url
+- background  : download_status_interval (>=15s),
+                wishlist_search_interval (>=300s)
+- wishlist    : description_search_keywords (default
+                "pakket, boekenpakket")
+- storage     : library_dir ("Library"), downloads_dir ("Downloads"),
+                root_dir (".")
 
-Configuratie is persistent in config.json. Geen database-migratie nodig
-bij uitbreiding — Pydantic valt terug op defaults voor ontbrekende velden.
+Geen database-migratie nodig bij uitbreiding — Pydantic valt terug op
+defaults voor ontbrekende velden.
 
-De UI (/configuration) biedt per sectie een Save- en Test-knop, plus
+UI (/configuration) biedt per sectie een Save- en Test-knop, plus
 "Sync Library" voor Calibre. Alle knoppen POSTen naar één endpoint met
-een `action`-discriminator (save_calibre, save_spotweb, test_spotweb,
+een `action`-discriminator: save_calibre, save_spotweb, test_spotweb,
 save_sabnzbd, test_sabnzbd, save_background, save_wishlist,
-test_calibre, sync_calibre).
+test_calibre, sync_calibre.
 
 
 ==================================================
@@ -361,7 +362,7 @@ test_calibre, sync_calibre).
 ==================================================
 
 SQLite in config/pulsarr.db.
-DATABASE_URL = f"sqlite:///{DATABASE_FILE}" in src/db/database.py.
+DATABASE_URL = f"sqlite:///{DATABASE_FILE}" in app/db/database.py.
 create_db_and_tables() draait in de FastAPI lifespan.
 
 Tabellen:
@@ -384,10 +385,9 @@ search_results (SearchResultRecord)
   (DownloadStatus enum), sabnzbd_id (indexed)
 
 Belangrijk:
-- GUID-deduplicatie gebeurt in de service-laag (wishlist_service),
-  niet in de DB (geen unique constraint).
-- book_id = NULL voor title/author zoekresultaten (losse zoekopdrachten).
-- book_id gevuld voor full-search resultaten (gekoppeld aan wishlist).
+- GUID-deduplicatie gebeurt in de service-laag, niet in de DB.
+- book_id = NULL voor title/author zoekresultaten.
+- book_id gevuld voor full-search resultaten.
 
 
 ==================================================
@@ -396,11 +396,10 @@ Belangrijk:
 
 8.1 SPOTWEB
 ------------
-Bestand: src/services/spotweb_service.py
+Bestand: app/services/spotweb_service.py
 Categorie: 7020 (boeken).
 API-endpoint: <configured URL>/api
 Authenticatie: apikey in query-params.
-URL en key configureerbaar via Configuration-pagina.
 
 _get_api_url() bevat een guard: lege URL → duidelijke ValueError.
 DEZE GUARD MOET BLIJVEN.
@@ -409,40 +408,42 @@ Operaties:
 - t=search met q=<query> (of zonder q voor recent)
 - t=details met id=<guid>
 
-_get_api_url() voorbeeld:
-  url = settings.spotweb.url.strip()
-  if not url: raise ValueError("Spotweb URL is not configured...")
-  return url.rstrip("/") + "/api"
+Parsing: RSS/XML → SpotwebResult dataclasses, via _parse_xml_response
+(HTML-detectie).
 
-Parsing: RSS/XML → SpotwebResult dataclasses.
-Caching: geen (elke request doet HTTP).
-Logging: fouten via _log(...) naar activity log (met eerder genoemd
-lek-risico, zie sectie 4.2 punt 1).
+Foutafhandeling:
+- _safe_error_message strip't URL's uit exceptions.
+- _parse_xml_response geeft duidelijke fout bij HTML-respons.
+- Activity log krijgt gesanitizeerde meldingen.
 
 8.2 SABNZBD
 -----------
-Bestand: src/services/sabnzbd_service.py
+Bestand: app/services/sabnzbd_service.py
 API-endpoint: <configured URL>/api
 Authenticatie: apikey in query-params.
 
 Operaties:
-- mode=version         → test_connection
-- mode=addurl          → add_url (name = download_url)
-- mode=queue           → get_download_status (eerste check)
-- mode=history         → get_download_status (fallback) / get_download_history
+- mode=version   → test_connection
+- mode=addurl    → add_url (name = download_url)
+- mode=queue     → get_download_status (eerste check)
+- mode=history   → get_download_status (fallback) /
+                   get_download_history
 
-Queue-statussen (elke niet-failure) → DownloadStatus.DOWNLOADING.
+Queue-statussen: elke niet-failure → DownloadStatus.DOWNLOADING.
 History-statussen:
   "Extracting"       → DOWNLOADING
   "Completed"        → DOWNLOADED
   "Failed"/"Failed/Retry" → DOWNLOAD_FAILED + fail_message
   anders             → onbekend (False + status-string)
 
+LET OP: gebruikt nog `return False, str(exc)` (analoog aan Spotweb
+vóór v04). Fix in security-fase (sectie 17).
+
 8.3 CALIBRE
 -----------
-Bestand: src/services/calibre_service.py
+Bestand: app/services/calibre_service.py
 Endpoint: <configured URL>/opds?library_id=04.Calibre
-LET OP: library_id=04.Calibre is HARDCODED. Dit is een kandidaat voor
+LET OP: library_id=04.Calibre is HARDCODED. Kandidaat voor
 configuratie-uitbreiding (vergelijkbaar met de Spotweb-URL destijds).
 
 Flow:
@@ -456,7 +457,8 @@ Flow:
 Sync-gedrag:
 - Nieuwe calibre_id → insert.
 - Bestaande calibre_id → update.
-- calibre_id die niet meer in Calibre bestaat → session.delete (DESTRUCTIEF).
+- calibre_id die niet meer in Calibre bestaat → session.delete
+  (DESTRUCTIEF).
 - Cover wordt gedownload via library_storage_service.download_cover()
   als local_cover_path leeg is; thumbnail max 300x450, JPEG q=85.
 
@@ -465,71 +467,64 @@ Sync-gedrag:
 9. ZOEKLOGICA (WISHLIST)
 ==================================================
 
-Bestand: src/services/wishlist_service.py
+Bestand: app/services/wishlist_service.py
 
-Drie modi, corresponderend met de drie knoppen in het UI-boekmenu:
+Vier modi:
 
-A. Full Search        (search_book_full)
-B. Title Search       (search_book, search_type="title")
-C. Author Search      (search_book, search_type="author")
-D. Background Search  (search_books, aangeroepen door BackgroundService)
-
-A. FULL SEARCH
---------------
+A. FULL SEARCH (search_book_full)
 1. Directe title-search via spotweb_service.search_books(book.title).
 2. Directe author-search via spotweb_service.search_books(book.author).
-3. Resultaten combineren op guid (dict).
-4. Voor elk resultaat: book_matches(title, author, spot_title, "").
-   (= titel + auteur beide aanwezig in de Spot-titel.)
+3. Combineren op guid (dict).
+4. Per resultaat: book_matches(title, author, spot_title, "").
 5. Als GEEN directe match: package search als fallback.
    - Keywords uit settings.wishlist.description_search_keywords.
-   - Voor elk keyword: spotweb_service.search_books(keyword).
-   - Voor elk resultaat: get_details(guid) → description.
-   - Match via book_matches(book.title, book.author, spot_title, description).
-6. Nieuwe records aanmaken, gekoppeld aan book.id, search_type=BOOK.
+   - Per keyword: search_books(keyword), per resultaat get_details.
+   - Match via book_matches(..., details.description).
+6. Nieuwe records met book_id=book.id, search_type=BOOK.
 7. book.status = POSSIBLE_MATCH als er matches zijn.
 8. Deduplicatie: op (book_id, guid, search_type).
 
-B. TITLE SEARCH
----------------
-1. spotweb_service.search_books(book.title).
-2. In aanvulling: package search met search_type="title".
-   - Per package: get_details, description splitsen op regels.
-   - match_title_or_author(book.title, book.author, line).
-3. Nieuwe records met book_id=NULL, search_type=TITLE.
-4. book.status wordt NIET gewijzigd (bewuste keuze, zie sectie 17).
+B. TITLE SEARCH (search_book, search_type="title")
+1. search_books(book.title).
+2. Package search met search_type="title" (per regel
+   match_title_or_author).
+3. Records met book_id=NULL, search_type=TITLE.
+4. book.status wordt NIET gewijzigd.
 
-C. AUTHOR SEARCH
-----------------
+C. AUTHOR SEARCH (search_book, search_type="author")
 Idem als B, met book.author, search_type=AUTHOR, book_id=NULL.
 
-D. BACKGROUND SEARCH
---------------------
+D. BACKGROUND SEARCH (search_books, door BackgroundService)
 1. Boeken met status UNAVAILABLE ophalen.
-2. spotweb_service.fetch_recent_books_paginated(pages=3, page_size=100)
-   = 300 recente releases.
+2. fetch_recent_books_paginated(pages=3, page_size=100) = 300 recente
+   releases.
 3. Per boek, per resultaat:
-   a. book_matches(book.title, book.author, spot_title, "").
+   a. book_matches(book.title, book.author, spot_title, "")
       → direct match.
    b. Als geen match: check of de Spot-titel een package-keyword bevat
       (uit description_search_keywords). Zo nee → skip.
-   c. Zo ja: get_details(guid), dan book_matches(..., details.description).
+   c. Zo ja: get_details(guid), dan book_matches(..., description).
 4. Nieuwe records met book_id=book.id, search_type=BOOK.
 5. book.status = POSSIBLE_MATCH als er matches zijn.
 
-Efficiency-detail (belangrijk t.o.v. v02):
-In de background search wordt get_details NIET opgehaald voor ieder
-resultaat. Alleen als de Spot-titel een package-keyword bevat. Dit
-voorkomt onnodige detail-requests.
+Efficiency-detail:
+In background search wordt get_details NIET voor ieder resultaat
+opgehaald. Alleen als de Spot-titel een package-keyword bevat.
+Voorkomt onnodige detail-requests.
 
-Zie ook de tabel onderaan sectie 9 (zoekmodi).
+| Modus              | Spotweb API             | Lokale verwerking          |
+| ------------------ | ----------------------- | -------------------------- |
+| A Full Search      | volledige index         | package descriptions       |
+| B Title Search     | volledige index         | package descriptions       |
+| C Author Search    | volledige index         | package descriptions       |
+| D Background       | recente 300             | normale spots + packages   |
 
 
 ==================================================
 10. BOOK MATCHING
 ==================================================
 
-Bestand: src/services/bookmatch_service.py
+Bestand: app/services/bookmatch_service.py
 
 _normalize():
 - Unicode NFKD → ASCII
@@ -562,7 +557,7 @@ zonder expliciete opdracht aanpassen.
 11. ACHTERGRONDPROCESSEN
 ==================================================
 
-Bestand: src/services/background_service.py
+Bestand: app/services/background_service.py
 
 BackgroundService start in FastAPI lifespan:
 - download_status_worker
@@ -572,8 +567,7 @@ download_status_worker:
 - Loop: lees settings.background.download_status_interval (>=15s).
 - Slaap interval, dan alle SearchResultRecord met
   download_status=DOWNLOADING checken via downloads_service.
-- check_download_status() werkt book.status bij (DOWNLOADING /
-  DOWNLOADED / DOWNLOAD_FAILED) voor gekoppelde book_id's.
+- check_download_status() werkt book.status bij.
 
 wishlist_search_worker:
 - Eerste iteratie direct (geen wachttijd), daarna interval
@@ -583,33 +577,29 @@ wishlist_search_worker:
 - Bij fout: "Automatic Search Failed".
 
 manual_wishlist_search():
-- Wordt getriggerd door /wishlist/search (POST).
+- Getriggerd door /wishlist/search (POST).
 - Dedupliceert: als er al een manual task loopt, doet hij niets.
-- Gebruikt asyncio.Lock (wishlist_search_lock) zodat manual en
-  automatic search niet tegelijk lopen.
+- Gebruikt asyncio.Lock zodat manual en automatic search niet
+  tegelijk lopen.
 
 Blocking werk (Spotweb-calls, SQLModel) draait via asyncio.to_thread
 zodat de event loop vrij blijft.
 
 ActivityLogService.log_background_task():
 - Dedupliceert "Automatic Search Completed": werkt bestaande regel bij
-  in plaats van nieuwe aan te maken. Voorkomt onbeperkte groei van het
-  log bij de periodieke search.
-
-BELANGRIJK: De activity log kan bij frequent manueel gebruik snel vullen
-(INFO per zoekopdracht in search_book title/author). Zie sectie 15.
+  in plaats van nieuwe aan te maken. Voorkomt onbeperkte groei.
 
 
 ==================================================
 12. UI / UX
 ==================================================
 
-Base layout: src/templates/pulsarr/index.html
+Base layout: app/screens/_layout.html
 - Sidebar-navigatie (Library / Wishlist / Result Management /
   Activity Log / Configuration).
 - Mobile menu met off-canvas sidebar.
 - Versie-footer met "v0.8.9" (hardcoded — zie sectie 15).
-- Bootstrap CSS/JS via CDN (zie sectie 4.2 punt 3).
+- Bootstrap CSS/JS via CDN (zie sectie 4.3 punt 3).
 
 Pagina-specifiek:
 
@@ -635,9 +625,9 @@ Result Management (/result-management)
 - Client-side zoekfilter.
 - Modal voor volledige Spot-titel.
 - Weergave-label hangt af van search_type:
-  TITLE → search_title
+  TITLE  → search_title
   AUTHOR → search_author
-  BOOK → "author - title" (of één van beide)
+  BOOK   → "author - title" (of één van beide)
 
 Activity Log (/activity-log)
 - Tabel met datum, level, source, message, details.
@@ -652,21 +642,21 @@ Configuration (/configuration)
 
 Stijl:
 - Bootstrap 5.3.7 + Bootstrap Icons.
-- Eigen CSS-laag in pulsarr.css (design tokens, knoppen, tiles,
-  library-grid, mobile menu, status-badges).
+- Eigen CSS-laag in app/static/css/pulsarr.css.
 - Gebruikt moderne CSS (:has()) — vereist Chromium 105+, Safari 15.4+,
-  Firefox 121+. Houd hier rekening mee bij browser-compatibiliteit.
+  Firefox 121+.
 - Geen dark mode (bewust niet aanwezig).
 - Taalmix NL/EN in UI-teksten (cosmetisch).
 
 Client-side vs server-side filtering (bewust niet uniform):
-- Activity Log    → client-side
+- Activity Log      → client-side
 - Result Management → client-side
-- Wishlist        → client-side
-- Library         → server-side (debounced)
+- Wishlist          → client-side
+- Library           → server-side (debounced)
 
-Modals gebruiken textContent (niet innerHTML) — dit is bewust, want
-beschrijvingen kunnen HTML bevatten. NIET wijzigen zonder escaping-laag.
+Modals gebruiken textContent (niet innerHTML) — bewust, want
+beschrijvingen kunnen HTML bevatten. NIET wijzigen zonder
+escaping-laag.
 
 
 ==================================================
@@ -676,24 +666,26 @@ beschrijvingen kunnen HTML bevatten. NIET wijzigen zonder escaping-laag.
 Dockerfile:
 - Base: python:3.14-slim
 - ENV: PULSARR_CONFIG_DIR=/config, PULSARR_LIBRARY_ROOT=/library
+- COPY app ./app
 - mkdir -p /config /library
-- CMD: uvicorn src.main:app --host 0.0.0.0 --port 8010
+- CMD: uvicorn app.main:app --host 0.0.0.0 --port 8010
 - EXPOSE 8010
 
 Aandachtspunten:
-- Container draait als root (geen USER-directive). Overwegen om
-  naar non-root te gaan (security-best-practice).
+- Container draait als root (geen USER-directive).
 - Geen HEALTHCHECK.
 - Geen multi-stage build.
 - Base image python:3.14 is erg recent; controleer compatibiliteit
   met Pillow en SQLModel.
+- workers=1 is impliciet. MOET zo blijven: de achtergrondtaken
+  draaien in-process en SQLModel heeft geen cross-process locking.
+  Voeg GEEN --workers N toe.
 
-.dockerignore sluit config/, data/, library/, *.db, *.sqbpro uit
-(geen secrets of data in image). Let op: *.sqbpro lijkt een typefout
-voor *.sqlite of *.db-shm/.db-wal; controleer.
+.dockerignore sluit config/, data/, library/, *.db, *.sqbpro uit.
+Let op: *.sqbpro lijkt een typefout; controleer.
 
 .gitignore sluit config/config.json en config/*.db uit.
-LET OP: .env-bestanden zijn NIET expliciet ignored. Overwegen toe te voegen.
+LET OP: .env-bestanden zijn NIET expliciet ignored.
 
 GitHub Actions: .github/workflows/docker.yml
 - Trigger: push tags v*
@@ -704,201 +696,229 @@ GitHub Actions: .github/workflows/docker.yml
 - Actions: checkout@v6, setup-buildx-action@v3, login-action@v4,
   metadata-action@v6, build-push-action@v7.
 
-GHCR is de image-registry.
-
 
 ==================================================
 14. RELEASEPROCES
 ==================================================
 
-Gewenste workflow:
-
 1. Code wijzigen.
 2. git diff --check
-3. python -m compileall -q src
-4. Handmatige functionele tests (relevante zoekmodi, config, UI).
+3. python -m compileall -q app
+4. Handmatige functionele tests.
 5. git diff controleren.
 6. Committen.
 7. Versie bijwerken:
-   - src/templates/pulsarr/index.html (sidebar-footer)
-   - eventueel andere plekken waar versie expliciet staat
+   - app/screens/_layout.html (sidebar-footer)
+   - eventueel andere plekken
 8. Tag maken/verplaatsen indien nodig.
 9. main pushen.
-10. Version-tag pushen → GitHub Actions bouwt Docker image naar GHCR.
+10. Version-tag pushen → GitHub Actions bouwt image naar GHCR.
 
-Bij bestaande remote tag: voorzichtig. Verplaatsen vereist
-`git push --force origin <tag>` en kan andere consumers breken.
+Bij bestaande remote tag: `git push --force origin <tag>` kan andere
+consumers breken. Voorzichtig.
+
+Werkwijze (naar Zkr-conventie):
+- Altijd committen vóór een nieuwe wijziging.
+- Eén stap per keer, testen, dan pas verder.
+- Commit-berichten in het Engels.
+- OVERDRACHT.md wordt meegecommit bij elke wijziging.
 
 
 ==================================================
-15. OPENSTAANDE PUNTEN (geconsolideerd)
+15. OPENSTAANDE PUNTEN
 ==================================================
 
-Security (zie ook sectie 4.2 voor details):
-1. API-key-lek via exception-strings in logs en UI.
-2. API-keys zichtbaar in config-HTML (value-attribuut).
+SECURITY (zie ook sectie 4.3)
+------------------------------
+1. SABnzbd exception-lek (analoog aan Spotweb-fix).
+2. API-keys in config-HTML (value-attribuut).
 3. CDN zonder SRI (Bootstrap, Bootstrap Icons).
-4. Destructieve acties zonder tweede bevestiging (sync_calibre, bulk-download).
+4. Destructieve acties zonder tweede bevestiging (sync_calibre,
+   bulk-download).
 5. Geen CSRF op POST-routes.
 6. Geen pad-whitelist in /library/cover/{book_id}.
 7. Geen security headers (CSP, X-Frame-Options, etc.).
-8. Geen `iss`-claim-validatie in CF JWT-check.
+8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
 10. .env niet in .gitignore.
+11. Geen rate limiting.
 
-Architectuur / robuustheid:
-11. src/db/downloads.py is dode code (niet geïmporteerd in main.py).
-    Bevat een dubbele /result-management-route (met template
-    downloads/index.html, dat niet bestaat).
-12. test_prowlarr.py importeert niet-bestaande src.services.prowlarr_service.
+ARCHITECTUUR / ROBUUSTHEID
+---------------------------
+12. test_prowlarr.py importeert niet-bestaande
+    app.services.prowlarr_service.
 13. test_spotweb_rss.py heeft hardcoded IP (192.168.1.30).
 14. test_spotweb_download.py heeft hardcoded RECORD_ID = 4.
 15. Routers schenden op enkele plekken de "geen DB in router"-regel
-    (activity_log.py, library.py, wishlist.py).
+    (activity_log_routes.py, library_routes.py, wishlist_routes.py).
 16. Status[status] (Enum-lookup met string) → KeyError → 500 bij
     ongeldige input. Geen nette 400.
 17. SpotwebService._log() opent zijn eigen Session(engine) i.p.v.
-    session van caller te ontvangen.
-18. library_storage_service.py leest config in __init__ op import-tijd
-    (wijzigingen in storage.root_dir pas effectief na restart).
+    session van caller.
+18. library_storage_service.py leest config in __init__ op
+    import-tijd (wijzigingen in storage.root_dir pas effectief na
+    restart).
 19. library_id=04.Calibre is hardcoded in calibre_service.
 20. download_status_worker gebruikt sleep als eerste actie; eerste
     status-check pas na interval.
-21. download_service.check_download_status() heeft inconsistent
+21. downloads_service.check_download_status() heeft inconsistent
     return-type (tuple vs None).
 22. count_books() doet len(...all()) i.p.v. select(func.count()).
 
-Operationeel:
+OPERATIONEEL
+------------
 23. Activity log kan snel vullen bij frequent manual search (INFO per
     zoekopdracht title/author).
 24. Veel print()-statements in services i.p.v. activity_log_service.
-    Functioneel (Docker stdout) maar inconsistent.
 25. requirements.txt is niet gepind.
 26. Geen HEALTHCHECK in Dockerfile.
-27. Versie "v0.8.9" hardcoded in pulsarr/index.html — mogelijk verouderd
-    t.o.v. de daadwerkelijke feature-set. Overwegen te bumpen vóór
-    volgende release.
+27. Versie "v0.8.9" hardcoded in _layout.html — verouderd t.o.v.
+    code (huidige tag v0.9.7). Bumpen vóór volgende release.
 28. max-scale=1.0 in viewport (a11y: pinch-zoom geblokkeerd).
 29. Taalmix NL/EN in UI-teksten.
 30. library_cover is de enige "cover"-route; epub-serving ontbreekt
     (epub_url en local_epub_path worden wel opgeslagen).
+
+REST / KLEIN
+------------
+31. src/db/downloads.py (dode code) — VERLEDEN TIJD, verwijderd in
+    v04.
+32. selectAll-referentie in result_management.html bestaat niet in
+    de template (dode JS).
+33. library_storage_service: *.sqbpro in .dockerignore lijkt typefout.
 
 
 ==================================================
 16. NIET ZOMAAR WIJZIGEN
 ==================================================
 
-De volgende zaken zijn gevoelig en mogen niet zonder expliciete opdracht
-worden aangepast:
+Gevoelig, niet zonder expliciete opdracht aanpassen:
 
-- Cloudflare-validatie (src/cloudflare.py) en de CF-headers-detectie.
-- De LAN-bypass-keuze (bewust ontwerp, met bekende risico's).
+- Cloudflare-validatie (app/cloudflare.py) en CF-headers-detectie.
+- LAN-bypass-keuze (bewust ontwerp, bekende risico's).
 - Spotweb endpoint-opbouw (_get_api_url guard).
+- _safe_error_message en _parse_xml_response in spotweb_service.
 - API-key handling in config_service (env-overrides).
 - Package-fallback-logica (wishlist_service._search_package_matches).
 - Book matching (bookmatch_service) — _normalize, _author_variants,
   match_title_or_author, book_matches.
-- SearchResultRecord deduplicatie-logica (per search_type verschillend).
+- SearchResultRecord deduplicatie (per search_type verschillend).
 - De bewuste keuze dat title/author searches book_id=NULL hebben en
   book.status niet wijzigen.
 - SABnzbd-integratie en status-mapping.
-- Calibre-integratie en sync-gedrag (inclusief destructieve delete-stap).
-- Achtergrondtaken (locks, to_thread, deduplicatie van "Completed"-log).
+- Calibre-integratie en sync-gedrag (inclusief destructieve delete).
+- Achtergrondtaken (locks, to_thread, deduplicatie).
 - Config.json-architectuur en env-var overrides.
 - SQLite-schema.
-- Router/service-scheiding (voor zover aanwezig).
-- Docker-platforms (amd64 + arm64), image-naam (ghcr.io/robwiesener/pulsarr),
-  GitHub Actions tag-trigger (v*).
+- screens/<naam>_routes.py + <naam>.html patroon en app/templates.py.
+- Docker-platforms, image-naam, tag-trigger (v*).
 - Bestaande Bootstrap/Jinja2 UI-structuur.
-- Gebruik van textContent (niet innerHTML) in modals.
-- Jinja2 auto-escape niet uitzetten (|safe niet toevoegen aan user-content).
+- textContent (niet innerHTML) in modals.
+- Jinja2 auto-escape niet uitzetten (|safe niet toevoegen).
+- workers=1 in uvicorn (in-process background + SQLite).
 
 
 ==================================================
-17. DELTA T.O.V. v02
+17. ROADMAP NAAR ZKR-ALIGNMENT
 ==================================================
 
-Deze sectie is bedoeld om te controleren of niets belangrijks ontbreekt
-wanneer je vanuit v02 verder werkt.
+Pulsarr wordt stapsgewijs in lijn gebracht met Zkr. Elke stap is
+een aparte commit + OVERDRACHT-update.
 
-SECURITY (grootste wijziging)
------------------------------
-+ Cloudflare Access JWT-validatie met caching (src/cloudflare.py).
-+ LAN-bypass voor private IP-ranges (bewust, gedocumenteerd).
-+ Fail-safe: publiek IP zonder CF-headers → JWT verplicht.
-+ CF_ACCESS_DISABLED env-var voor lokale dev.
-+ Alle routers achter Depends(validate_cloudflare).
-+ Env-var overrides voor SPOTWEB_API_KEY en SABNZBD_API_KEY.
-+ 0o600 op config.json.
-+ .dockerignore sluit config/, data/, library/ uit.
+STAP 1 — BESTANDSSTRUCTUUR ✅ VOLTOOID
+--------------------------------------
+- src/ → app/
+- routers/ + templates/ → app/screens/ (plat)
+- <naam>_routes.py + <naam>.html (Zkr-conventie)
+- app/templates.py (gedeelde Jinja2Templates)
+- dockerfile aangepast (COPY app, uvicorn app.main:app)
+- src/db/downloads.py verwijderd
 
-FEATURES (nieuw of aanzienlijk uitgebreid)
-------------------------------------------
-+ Library-tabel en -sync (Calibre OPDS, cover-download + thumbnail).
-+ Library-UI (grid, sorteren, filteren, pagineren, modal).
-+ Activity Log-UI met level-badges en vrije-tekst-zoekfilter.
-+ Uitgebreide config-pagina met vijf secties (Calibre, Spotweb,
-  SABnzbd, Background, Wishlist), elk met save/test, plus sync_calibre.
-+ Wishlist-actiemenu met drie zoekmodi (book/title/author) + edit +
-  delete + add-by-author.
-+ Result Management met bulk-download en bulk-delete, size-weergave,
-  modal voor volledige Spot-titel.
-+ Background search met keyword-voorfilter (efficiëntie).
-+ Manual wishlist search met deduplicatie + asyncio.Lock.
-+ "Automatic Search Completed"-deduplicatie in ActivityLogService.
-+ DownloadStatus-enum (nieuw) los van Status-enum.
-+ SearchType-enum (BOOK/TITLE/AUTHOR).
-+ badge_class-property op enums stuurt UI-kleuren.
-+ Book-model versimpeld (geen series-velden meer, ondanks docstring).
-+ SearchResultRecord uitgebreid: book_id, search_title, search_author,
-  search_type, download_status, sabnzbd_id.
-+ SpotwebResult dataclass (naast SearchResult).
-+ Library-model met calibre_id + lokale bestandspaden.
-+ StorageSettings, WishlistSettings, BackgroundSettings.
-+ Mobiele CSS-laag met off-canvas sidebar.
-+ Library-paginatie + rating-filter.
-+ Versie-footer in sidebar (v0.8.9).
+STAP 2 — KLEINE BUGS ✅ DEELS VOLTOOID
+---------------------------------------
+- Spotweb HTML-detectie + error-sanitization (v04) ✅
+- SABnzbd error-sanitization (analoog) ⏳
+- selectAll dode JS opruimen ⏳
+- test_prowlarr.py fixen (prowlarr_service bestaat niet) ⏳
+- test_spotweb_rss.py hardcoded IP → env-var ⏳
 
-ARCHITECTUUR / GEDRAG
----------------------
-~ title/author searches maken book_id=NULL en wijzigen book.status NIET
-  (in v02 impliciet anders beschreven).
-~ Background search checkt keyword-voorfilter vóór get_details.
-~ match_package_description splitst op <br> én newlines (robuuster).
-~ _author_variants keert woordvolgorde om.
-~ search_book_full retourneert None (alleen gelogd).
-~ Activity logt nu INFO per title/author search.
-~ Book matching: book_matches combineert titel-match en package-match.
+STAP 3 — SECURITY (in één sessie)
+---------------------------------
+a. CSRF double-submit cookie (middleware + tokens in alle
+   POST-forms, naar Zkr-model: csrf.py + csrf_middleware.py).
+b. Rate limiting per IP (SlowAPI, buitenste laag, vóór CSRF).
+c. Generieke exception handler (geen str(exc) naar client).
+d. API-key-masking in configuration.html (placeholder "********",
+   bestaande waarde behouden bij lege submit).
+e. SABnzbd _safe_error_message (analoog aan Spotweb).
+f. safe_fs-achtige pad-validatie voor /library/cover en
+   library_storage_service (is_under + symlink-check).
+g. SQLite hardening: WAL, busy_timeout=30s, threading.RLock,
+   transaction()-contextmanager.
+h. Multi-worker guard in main.py (weiger te starten als
+   UVICORN_WORKERS > 1) + comment in Dockerfile.
+i. Ruff CI (--select F, scope app/) in GitHub Actions.
+j. Security headers middleware (CSP, X-Frame-Options,
+   X-Content-Type-Options, Referrer-Policy).
+k. SRI-hashes op CDN-links of Bootstrap vendoren in
+   app/static/vendor/.
 
-OBSOLETE / DODE CODE
---------------------
-- src/db/downloads.py is niet meer geïmporteerd in main.py.
-  Bevat een dubbele /result-management-route (met niet-bestaande
-  template downloads/index.html). Opruimen.
-- test_prowlarr.py verwijst naar src.services.prowlarr_service
-  (bestaat niet in de huidige codebase).
-- In result_management/index.html wordt selectAll gerefereerd maar
-  bestaat niet in de template (dode JS).
+STAP 4 — OPERATIONELE VOLWASSENHEID
+------------------------------------
+a. app/version.py als single source of truth voor _layout.html.
+b. Migraties als .sql-bestanden (pas bij eerste echte
+   schema-wijziging; documenteer nu al het plan).
+c. Transactie-discipline documenteren (failure-paths in
+   transaction(), success-paths niet).
+d. BEWUST-NIET-lijst uitbreiden op basis van praktijkervaring.
 
-NIET MEER AANWEZIG (t.o.v. v02-omschrijving)
---------------------------------------------
-- De v02-zin "Bootstrap voor UI-layout" is te simpel: er is nu een
-  eigen design system in pulsarr.css bovenop Bootstrap.
-- Hardcoded IP-adressen (192.168.1.30) zijn weg uit de applicatie
-  (staan alleen nog in test_spotweb_rss.py, dev-script).
-- Geen aparte SPA, geen frontend-bundler (ongewijzigd t.o.v. v02).
+STAP 5 — STRUCTURELE KEUZES (alleen op verzoek)
+-----------------------------------------------
+a. Trash-systeem voor library-rijen (analoog aan Zkr).
+b. error_code-kolommen op search_results.
+c. packages-terminologie hernoemen om botsing met Zkr's
+   packages-tabel te voorkomen (indien ooit code wordt
+   overgenomen).
+
+NIET DOEN (tenzij expliciet gevraagd):
+- Htmx introduceren.
+- PWA / iOS homescreen / manifest.json.
+- Aparte proces-modules (Spotter/Matcher/Dispatcher/Monitor/
+  Publisher/Housekeeper) — Pulsarr's scope rechtvaardigt dit niet.
+- Migraties introduceren vóór de eerste echte schema-wijziging.
+- Kodi-specifieke conventies.
 
 
 ==================================================
-18. VALIDATIE BIJ WIJZIGINGEN
+18. BEWUST NIET OVERNEMEN UIT ZKR
 ==================================================
 
-Standaard uitvoeren bij elke wijziging:
+Deze keuzes zijn gemaakt en hoeven niet opnieuw ter discussie:
 
+- Geen htmx. Inline JS per template volstaat voor Pulsarr's scope.
+- Geen SPA / React / Vue.
+- Geen PWA / manifest.json / iOS homescreen.
+- Geen aparte proces-modules. background_service.py met twee
+  workers is proportioneel.
+- Geen migratie-runner tot de eerste echte schema-wijziging.
+- Geen trash voor wishlist-rijen (klein, herstelbaar via UI).
+- Geen paginatie op wishlist (klein aantal boeken).
+- Geen multi-worker uvicorn (in-process background + SQLite).
+- Geen error_code-kolommen op search_results (nu).
+- Geen rate limits aanpassen aan Zkr-niveau (Pulsarr is LAN-tool).
+- Geen screens-submappen (plat is voldoende voor 6 schermen).
+- Geen _helpers.py / _toggles.py in screens/ (pas bij noodzaak).
+
+
+==================================================
+19. VALIDATIE BIJ WIJZIGINGEN
+==================================================
+
+Standaard:
   git diff --check
-  python -m compileall -q src
+  python -m compileall -q app
 
-Daarna handmatig testen:
+Handmatig testen:
 - relevante zoekmodus (full / title / author / background)
 - config-pagina (save + test per sectie)
 - library-sync (indien geraakt)
@@ -906,36 +926,41 @@ Daarna handmatig testen:
 - activity log (indien logging geraakt)
 - Cloudflare-validatie:
    * LAN-toegang zonder CF-headers moet werken.
-   * CF-headers aanwezig zonder geldige JWT moet 400/401 geven.
+   * CF-headers zonder geldige JWT moet 400/401 geven.
    * CF_ACCESS_DISABLED=1 moet alles doorlaten.
 
-Lokaal starten (voorbeeld):
+Lokaal starten:
   cd /Volumes/Data/01.Temp/pulsarr
   source .venv/bin/activate
   export PULSARR_CONFIG_DIR=config
-  uvicorn src.main:app --reload --host 0.0.0.0 --port 8010
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
 
-Daarna git diff controleren en pas dan committen.
+Controle na rename/refactor:
+  grep -rn "from src\.\|import src\." app/ && echo "FOUT" || echo "OK"
+  ls src 2>/dev/null && echo "FOUT" || echo "OK"
 
 
 ==================================================
-19. DOEL VOOR DE NIEUWE CHAT
+20. DOEL VOOR DE NIEUWE CHAT
 ==================================================
 
 De nieuwe ChatGPT-chat moet dit document behandelen als de actuele
 technische context van Pulsarr.
 
 De gebruiker wil de app verder ontwikkelen vanuit de bestaande codebase,
-zonder bestaande functionaliteit onnodig te herschrijven.
+zonder bestaande functionaliteit onnodig te herschrijven, en stapsgewijs
+in lijn brengen met Zkr (sectie 17).
 
 Bij twijfel:
 - eerst de daadwerkelijke bestanden/code laten bekijken;
 - niet aannemen dat een functie anders werkt dan hierboven beschreven;
 - geen grote refactor voorstellen als een kleine wijziging voldoende is;
-- geen versie verhogen tenzij de gebruiker dat expliciet wil (maar zie
-  openstaand punt 27 over de verouderde versie-string);
-- geen nieuwe database-migratie introduceren tenzij technisch noodzakelijk;
+- geen versie verhogen tenzij de gebruiker dat expliciet wil;
+- geen nieuwe database-migratie introduceren tenzij technisch
+  noodzakelijk;
 - bestaande release- en Docker-workflow respecteren;
-- security-bevindingen uit sectie 4.2 en 15 niet stilzwijgend negeren:
-  als een wijziging raakt aan logging, exceptions, config-UI, CDN-loading
-  of POST-routes, de betreffende punten expliciet benoemen.
+- security-bevindingen uit sectie 4.3 en 15 niet stilzwijgend negeren:
+  als een wijziging raakt aan logging, exceptions, config-UI,
+  CDN-loading of POST-routes, de betreffende punten expliciet benoemen;
+- bij elke wijziging OVERDRACHT.md bijwerken en meecommitten
+  (Zkr-werkwijze).
