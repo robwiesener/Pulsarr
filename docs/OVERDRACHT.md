@@ -244,7 +244,7 @@ Zie sectie 15 voor de volledige lijst. De belangrijkste:
 7. Geen security headers (CSP, X-Frame-Options, etc.).
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
-10. .env niet in .gitignore. → OPGELOST in commit na v04.
+10. .env niet in .gitignore. → OPGELOST in commit na v04. → OPGELOST in commit na v04.
 11. Geen rate limiting.
 
 4.4 WAT GOED STAAT
@@ -778,7 +778,7 @@ SECURITY (zie ook sectie 4.3)
 7. Geen security headers (CSP, X-Frame-Options, etc.).
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
-10. .env niet in .gitignore. → OPGELOST in commit na v04.
+10. .env niet in .gitignore. → OPGELOST in commit na v04. → OPGELOST in commit na v04.
 11. Geen rate limiting.
 
 ARCHITECTUUR / ROBUUSTHEID
