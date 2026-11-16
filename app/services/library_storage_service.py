@@ -7,6 +7,7 @@ import requests
 from PIL import Image
 
 from app.config.config_service import config_service
+from app.security.safe_fs import safe_path_within
 
 
 class LibraryStorageService:
@@ -89,9 +90,17 @@ class LibraryStorageService:
         url: str,
     ) -> Path | None:
 
-        destination = self.get_cover_path(
-            calibre_book_id
-        )
+        try:
+            destination = safe_path_within(
+                self.get_cover_path(calibre_book_id),
+                self.library_dir,
+            )
+        except ValueError as exc:
+            print(
+                "LIBRARY STORAGE: unsafe cover path - "
+                f"calibre_id={calibre_book_id}: {exc}"
+            )
+            return None
 
         if destination.is_file():
             print(

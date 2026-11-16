@@ -6,6 +6,8 @@ from sqlmodel import Session, select, func, or_
 from pathlib import Path
 
 from app.db.database import get_session
+from app.security.safe_fs import safe_path_within
+from app.services.library_storage_service import library_storage_service
 from app.models.library import Library
 from app.templates import templates
 
@@ -121,9 +123,15 @@ def library_cover(
             status_code=404
         )
 
-    cover_path = Path(
-        book.local_cover_path
-    )
+    try:
+        cover_path = safe_path_within(
+            Path(book.local_cover_path),
+            library_storage_service.library_dir,
+        )
+    except ValueError:
+        return Response(
+            status_code=404
+        )
 
     if not cover_path.is_file():
         return Response(
