@@ -665,11 +665,14 @@ escaping-laag.
 13. DEPLOYMENT
 ==================================================
 
-Dockerfile:
+DOCKERFILE
+----------
 - Base: python:3.14-slim
-- ENV: PULSARR_CONFIG_DIR=/config, PULSARR_LIBRARY_ROOT=/library
+- WORKDIR /app
+- COPY requirements.txt .
 - COPY app ./app
-- mkdir -p /config /library
+- ENV: PULSARR_CONFIG_DIR=/config, PULSARR_LIBRARY_ROOT=/library
+- RUN mkdir -p /config /library
 - CMD: uvicorn app.main:app --host 0.0.0.0 --port 8010
 - EXPOSE 8010
 
@@ -677,47 +680,60 @@ Aandachtspunten:
 - Container draait als root (geen USER-directive).
 - Geen HEALTHCHECK.
 - Geen multi-stage build.
-- Base image python:3.14 is erg recent; controleer compatibiliteit
-  met Pillow en SQLModel.
-- workers=1 is impliciet. MOET zo blijven: de achtergrondtaken
-  draaien in-process en SQLModel heeft geen cross-process locking.
+- workers=1 is impliciet. MOET zo blijven: achtergrondtaken
+  draaien in-process en SQLite heeft geen cross-process locking.
   Voeg GEEN --workers N toe.
 
-.dockerignore sluit config/, data/, library/, *.db, *.sqbpro uit.
-Let op: *.sqbpro lijkt een typefout; controleer.
+DEV-OMGEVING (docker compose)
+-----------------------------
+Bestand: docker-compose.yml
 
-.gitignore sluit config/config.json en config/*.db uit.
-LET OP: .env-bestanden zijn NIET expliciet ignored.
-
-GitHub Actions: .github/workflows/docker.yml
-- Trigger: push naar main, push tags v*, pull_request naar main,
-  workflow_dispatch.
-- Permissions: contents:read, packages:write.
-- Image: ghcr.io/robwiesener/pulsarr.
-- Platforms: linux/amd64, linux/arm64.
-- Build via Buildx, met GHA cache (cache-from/cache-to).
-- Actions: checkout@v6, setup-buildx-action@v3, login-action@v4,
-  metadata-action@v6, build-push-action@v7.
-
-Gegenereerde image-tags (via docker/metadata-action):
-- Push naar main       → latest, sha-<sha>
-- Push tag v0.9.8      → 0.9.8, 0.9, latest, sha-<sha>
-- Pull request #5      → pr-5 (build, geen push)
-
-Lokaal ontwikkelen: docker-compose.yml (dev)
 - Build: docker compose up --build
 - Hot reload via volume mount van ./app
-- Config in ./config, library in ./library (beide gemount)
-- CF_ACCESS_DISABLED=1 in dev (auth uit)
+- Volumes: ./app:/app/app, ./config:/config, ./library:/library
+- Environment: TZ=Europe/Amsterdam, CF_ACCESS_DISABLED=1 (auth uit)
 - Container: Pulsarr-Dev, poort 8010
 - Geen .venv op de host meer nodig
+- Overschrijft CMD met --reload --reload-dir /app/app
 
-Productie: gepubliceerde image via Portainer of prod-compose
-- ghcr.io/robwiesener/pulsarr:latest (of :0.9.8 voor vast)
-- Geen volume mounts voor app/ (code zit in de image)
+PRODUCTIE
+---------
+- Image: ghcr.io/robwiesener/pulsarr:latest (of :0.9.x vast)
+- Geen app-mount (code zit in image)
 - Config en library wel mounten
 - workers=1 impliciet, NIET aanpassen
 
+DOCKERIGNORE
+------------
+Sluit uit: .venv/, __pycache__/, config/, data/, library/, *.db,
+*.sqbpro, .git/, .github/ (workflow niet in image nodig).
+
+Let op: *.sqbpro lijkt een typefout; controleer.
+
+GITIGNORE
+---------
+Sluit uit: config/config.json, config/*.db, library/, .venv/.
+LET OP: .env-bestanden zijn NIET expliciet ignored.
+
+GITHUB ACTIONS: .github/workflows/docker.yml
+--------------------------------------------
+Triggers:
+- push naar main
+- push tags v*
+- pull_request naar main
+- workflow_dispatch
+
+Permissions: contents:read, packages:write.
+
+Build via Buildx, met GHA cache (cache-from/cache-to).
+
+Actions: checkout@v6, setup-buildx-action@v3, login-action@v4,
+metadata-action@v6, build-push-action@v7.
+
+Gegenereerde image-tags:
+- Push naar main  → latest, sha-<sha>
+- Push tag v0.9.8 → 0.9.8, 0.9, latest, sha-<sha>
+- Pull request    → pr-N (build, geen push)
 
 ==================================================
 14. RELEASEPROCES
