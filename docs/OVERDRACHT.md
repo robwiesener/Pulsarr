@@ -224,10 +224,21 @@ _parse_xml_response(response, context):
 - Vervangt de verwarrende "junk after document element"-fout.
 - Gebruikt in alle vier de API-calls.
 
+API-KEY-MASKING IN CONFIG-UI
+-----------------------------
+- configuration.html toont value="" + placeholder ******** (of
+  "No API key set" als er nog geen key is).
+- Leeg form-veld = bestaande key behouden.
+- Niet-lege waarde = vervangen.
+- Key wissen vereist handmatige edit van config.json.
+- autocomplete="new-password" voorkomt browser-caching.
+- De werkelijke key staat nooit meer in de HTML-bron.
+
 Status van het API-key-lek:
 - Spotweb-kant: OPGELOST.
 - SABnzbd-kant: OPGELOST via gedeelde sanitize_exception
-  (app/security/safe_error.py).
+  (app/security/safe_error.py), die zowel volledige URL's als
+  relatieve paden in requests-exceptions redigeert.
 
 4.3 OPENSTAANDE SECURITY-PUNTEN
 --------------------------------
@@ -239,12 +250,14 @@ Zie sectie 15 voor de volledige lijst. De belangrijkste:
 3. CDN zonder SRI.
 4. Destructieve acties zonder tweede bevestiging (sync_calibre,
    bulk-download).
-5. Geen CSRF op POST-routes.
-6. Geen pad-whitelist in /library/cover/{book_id}.
-7. Geen security headers (CSP, X-Frame-Options, etc.).
+5. Geen CSRF op POST-routes. → OPGELOST.
+6. Geen pad-whitelist in /library/cover/{book_id}. → OPGELOST.
+7. Security headers: X-Content-Type-Options, X-Frame-Options,
+   Referrer-Policy, Permissions-Policy toegevoegd.
+   CSP nog open (inline scripts vereisen eerst nonces).
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
-10. .env niet in .gitignore. → OPGELOST in commit na v04. → OPGELOST in commit na v04.
+10. .env niet in .gitignore. → OPGELOST.
 11. Geen rate limiting. → OPGELOST in commit na v04.
 
 4.8 RATE LIMITING
@@ -785,12 +798,14 @@ SECURITY (zie ook sectie 4.3)
 3. CDN zonder SRI (Bootstrap, Bootstrap Icons).
 4. Destructieve acties zonder tweede bevestiging (sync_calibre,
    bulk-download).
-5. Geen CSRF op POST-routes.
-6. Geen pad-whitelist in /library/cover/{book_id}.
-7. Geen security headers (CSP, X-Frame-Options, etc.).
+5. Geen CSRF op POST-routes. → OPGELOST.
+6. Geen pad-whitelist in /library/cover/{book_id}. → OPGELOST.
+7. Security headers: X-Content-Type-Options, X-Frame-Options,
+   Referrer-Policy, Permissions-Policy toegevoegd.
+   CSP nog open (inline scripts vereisen eerst nonces).
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
-10. .env niet in .gitignore. → OPGELOST in commit na v04. → OPGELOST in commit na v04.
+10. .env niet in .gitignore. → OPGELOST.
 11. Geen rate limiting. → OPGELOST in commit na v04.
 
 ARCHITECTUUR / ROBUUSTHEID
