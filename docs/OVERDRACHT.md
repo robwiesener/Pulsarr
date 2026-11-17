@@ -740,6 +740,21 @@ PRODUCTIE
 - Config en library wel mounten
 - workers=1 impliciet, NIET aanpassen
 
+PORTAINER-VALKUIL (belangrijk):
+- Portainer bewaart een handmatige CMD-override bij "Recreate".
+- Als de container ooit met een override is aangemaakt (bijv.
+  `uvicorn src.main:app` van vóór de app/-rename), blijft die
+  override plakken, ook als de image zelf de juiste CMD heeft.
+- Symptoom: `docker inspect Pulsarr --format '{{.Config.Cmd}}'`
+  toont iets anders dan `docker inspect <image> --format '{{.Config.Cmd}}'`.
+- Oplossing: Container → Edit → Command-veld leegmaken → Deploy.
+- Voorkom dit door bij elke image-update de override te checken,
+  of door een prod-compose te gebruiken (die overschrijft alles).
+- Diagnose-commando's:
+    docker inspect Pulsarr --format '{{.Config.Cmd}}'
+    docker inspect ghcr.io/robwiesener/pulsarr:latest --format '{{.Config.Cmd}}'
+  Als die twee verschillen, is er een override.
+
 DOCKERIGNORE
 ------------
 Sluit uit: .venv/, __pycache__/, config/, data/, library/, *.db,
