@@ -247,7 +247,7 @@ Zie sectie 15 voor de volledige lijst. De belangrijkste:
 1. SABnzbd exception-lek. → OPGELOST in commit na v04.
 2. API-keys in config-HTML (value-attribuut). → OPGELOST in
    commit na v04.
-3. CDN zonder SRI.
+3. CDN zonder SRI. → OPGELOST (integrity op alle 3 CDN-tags).
 4. Destructieve acties zonder tweede bevestiging (sync_calibre,
    bulk-download).
 5. Geen CSRF op POST-routes. → OPGELOST.
@@ -929,11 +929,10 @@ g. SQLite hardening: WAL, busy_timeout=30s, threading.RLock,
    transaction()-contextmanager.
 h. Multi-worker guard in main.py (weiger te starten als
    UVICORN_WORKERS > 1) + comment in Dockerfile.
-i. Ruff CI (--select F, scope app/) in GitHub Actions.
+i. Ruff CI ✅ VOLTOOID (ruff check app --select F).
 j. Security headers middleware (CSP, X-Frame-Options,
    X-Content-Type-Options, Referrer-Policy).
-k. SRI-hashes op CDN-links of Bootstrap vendoren in
-   app/static/vendor/.
+k. SRI op CDN-links ✅ VOLTOOID.
 
 STAP 4 — OPERATIONELE VOLWASSENHEID
 ------------------------------------
