@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 
 from app.config.config_service import config_service
 from app.db.database import engine
-from app.models.enums import DownloadStatus, Status
+from app.models.enums import DownloadStatus
 from app.models.search_result_record import SearchResultRecord
 from app.services.downloads_service import downloads_service
 from app.services.wishlist_service import wishlist_service
@@ -172,7 +172,7 @@ class BackgroundService:
             interval = (settings.background.wishlist_search_interval)
 
             if first_run:
-                print(f"BACKGROUND SERVICE: Wishlist search worker initial run")
+                print("BACKGROUND SERVICE: Wishlist search worker initial run")
                 first_run = False
             else:
                 print(f"BACKGROUND SERVICE: Wishlist search worker sleeping {interval} seconds")

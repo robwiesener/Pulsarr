@@ -1,7 +1,7 @@
 from sqlmodel import Session, select
 
 from app.models.book import Book
-from app.models.enums import Status, SearchType, DownloadStatus
+from app.models.enums import Status, DownloadStatus
 from app.models.search_result_record import SearchResultRecord
 from app.services.sabnzbd_service import sabnzbd_service
 

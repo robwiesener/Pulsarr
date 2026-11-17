@@ -31,7 +31,7 @@ SQLite database
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Query
 from fastapi.responses import RedirectResponse
 
-from sqlmodel import Session, select, func
+from sqlmodel import Session
 
 from app.models.book import Book
 from app.models.enums import Status

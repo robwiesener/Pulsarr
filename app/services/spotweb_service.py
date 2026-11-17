@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 
 import xml.etree.ElementTree as ET
