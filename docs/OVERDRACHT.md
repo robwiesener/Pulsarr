@@ -376,6 +376,19 @@ AppSettings (Pydantic):
 Geen database-migratie nodig bij uitbreiding — Pydantic valt terug op
 defaults voor ontbrekende velden.
 
+ENV-VAR VS CONFIG.JSON (belangrijk):
+- SPOTWEB_API_KEY en SABNZBD_API_KEY (env) overrulen config.json.
+- config_service.load() geeft de env-waarde terug aan de applicatie.
+- config_service.save() schrijft de env-waarde NOOIT naar config.json:
+  bestaande config-waarde blijft behouden (of leeg als die er niet was).
+- configuration_routes.save_settings() past de key ook niet aan in het
+  settings-object als de env-var gezet is.
+- configuration.html toont het key-veld disabled met
+  "Managed by environment variable" en een hint naar de env-var-naam.
+- Gevolg: een Docker/Portainer-secret lekt nooit naar config.json.
+- Key wissen vereist: env-var weghalen + container herstarten +
+  via UI leeg opslaan (of config.json handmatig aanpassen).
+
 UI (/configuration) biedt per sectie een Save- en Test-knop, plus
 "Sync Library" voor Calibre. Alle knoppen POSTen naar één endpoint met
 een `action`-discriminator: save_calibre, save_spotweb, test_spotweb,
