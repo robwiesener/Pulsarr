@@ -225,17 +225,17 @@ _parse_xml_response(response, context):
 - Gebruikt in alle vier de API-calls.
 
 Status van het API-key-lek:
-- Spotweb-kant: OPGELOST (via _safe_error_message + _parse_xml_response).
-- SABnzbd-kant: NOG OPEN. sabnzbd_service.py gebruikt nog steeds
-  `return False, str(exc)` in test_connection, add_url en
-  get_download_status. Te fixen in de security-fase (sectie 17).
+- Spotweb-kant: OPGELOST.
+- SABnzbd-kant: OPGELOST via gedeelde sanitize_exception
+  (app/security/safe_error.py).
 
 4.3 OPENSTAANDE SECURITY-PUNTEN
 --------------------------------
 Zie sectie 15 voor de volledige lijst. De belangrijkste:
 
-1. SABnzbd exception-lek (analoog aan Spotweb-fix).
-2. API-keys in config-HTML (value-attribuut).
+1. SABnzbd exception-lek. → OPGELOST in commit na v04.
+2. API-keys in config-HTML (value-attribuut). → OPGELOST in
+   commit na v04.
 3. CDN zonder SRI.
 4. Destructieve acties zonder tweede bevestiging (sync_calibre,
    bulk-download).
@@ -779,8 +779,9 @@ Werkwijze (naar Zkr-conventie):
 
 SECURITY (zie ook sectie 4.3)
 ------------------------------
-1. SABnzbd exception-lek (analoog aan Spotweb-fix).
-2. API-keys in config-HTML (value-attribuut).
+1. SABnzbd exception-lek. → OPGELOST in commit na v04.
+2. API-keys in config-HTML (value-attribuut). → OPGELOST in
+   commit na v04.
 3. CDN zonder SRI (Bootstrap, Bootstrap Icons).
 4. Destructieve acties zonder tweede bevestiging (sync_calibre,
    bulk-download).
@@ -903,10 +904,10 @@ STAP 3 — SECURITY (in één sessie)
 ---------------------------------
 a. CSRF double-submit cookie ✅ VOLTOOID
 b. Rate limiting per IP ✅ VOLTOOID (eigen implementatie, geen SlowAPI).
-c. Generieke exception handler (geen str(exc) naar client).
-d. API-key-masking in configuration.html (placeholder "********",
-   bestaande waarde behouden bij lege submit).
-e. SABnzbd _safe_error_message (analoog aan Spotweb).
+c. Generieke exception handler ✅ VOLTOOID.
+d. API-key-masking ✅ VOLTOOID (placeholder + leeg-behoudt-regel).
+e. SABnzbd _safe_error_message ✅ VOLTOOID (gedeelde
+   sanitize_exception).
 f. safe_fs-achtige pad-validatie voor /library/cover en
    library_storage_service (is_under + symlink-check).
 g. SQLite hardening: WAL, busy_timeout=30s, threading.RLock,
