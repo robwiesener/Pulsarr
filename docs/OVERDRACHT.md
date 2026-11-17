@@ -245,7 +245,18 @@ Zie sectie 15 voor de volledige lijst. De belangrijkste:
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
 10. .env niet in .gitignore. → OPGELOST in commit na v04. → OPGELOST in commit na v04.
-11. Geen rate limiting.
+11. Geen rate limiting. → OPGELOST in commit na v04.
+
+4.8 RATE LIMITING
+--------------------
+Bestand: app/security/ratelimit_middleware.py
+
+- Per IP: 100 GET/min, 20 POST/min, 5 search/min.
+- Sliding window, in-memory (reset bij restart).
+- IP-bron: CF-Connecting-IP > X-Forwarded-For > client.host.
+- /static/* uitgezonderd.
+- 429 met Retry-After + X-RateLimit-Limit/Remaining headers.
+- Middleware-volgorde: SecurityHeaders -> RateLimit -> CSRF -> app.
 
 4.4 WAT GOED STAAT
 ------------------
@@ -779,7 +790,7 @@ SECURITY (zie ook sectie 4.3)
 8. Geen iss-claim-validatie in CF JWT-check.
 9. Docker draait als root.
 10. .env niet in .gitignore. → OPGELOST in commit na v04. → OPGELOST in commit na v04.
-11. Geen rate limiting.
+11. Geen rate limiting. → OPGELOST in commit na v04.
 
 ARCHITECTUUR / ROBUUSTHEID
 ---------------------------
@@ -890,9 +901,8 @@ STAP 2 — KLEINE BUGS ✅ DEELS VOLTOOID
 
 STAP 3 — SECURITY (in één sessie)
 ---------------------------------
-a. CSRF double-submit cookie (middleware + tokens in alle
-   POST-forms, naar Zkr-model: csrf.py + csrf_middleware.py).
-b. Rate limiting per IP (SlowAPI, buitenste laag, vóór CSRF).
+a. CSRF double-submit cookie ✅ VOLTOOID
+b. Rate limiting per IP ✅ VOLTOOID (eigen implementatie, geen SlowAPI).
 c. Generieke exception handler (geen str(exc) naar client).
 d. API-key-masking in configuration.html (placeholder "********",
    bestaande waarde behouden bij lege submit).
