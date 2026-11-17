@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse
 
@@ -37,6 +39,8 @@ def settings(
             "settings": settings,
             "book_count": book_count,
             "calibre_url": calibre_service.get_base_url(),
+            "spotweb_key_from_env": bool(os.getenv("SPOTWEB_API_KEY")),
+            "sabnzbd_key_from_env": bool(os.getenv("SABNZBD_API_KEY")),
         },
     )
 
@@ -68,12 +72,14 @@ def save_settings(
 
     # Spotweb settings
     settings.spotweb.url = spotweb_url
-    if spotweb_api_key.strip():
+    if spotweb_api_key.strip() and not os.getenv("SPOTWEB_API_KEY"):
         settings.spotweb.api_key = spotweb_api_key
+    # Als SPOTWEB_API_KEY in env staat, is dat de bron van waarheid.
+    # De UI stuurt dan een disabled veld (leeg), en we slaan niets op.
 
     # SABnzbd settings
     settings.sabnzbd.url = sabnzbd_url
-    if sabnzbd_api_key.strip():
+    if sabnzbd_api_key.strip() and not os.getenv("SABNZBD_API_KEY"):
         settings.sabnzbd.api_key = sabnzbd_api_key
     settings.sabnzbd.category = sabnzbd_category
 
@@ -127,6 +133,8 @@ def save_settings(
                     ).all()
                 ),
                 "calibre_url": calibre_service.get_base_url(),
+            "spotweb_key_from_env": bool(os.getenv("SPOTWEB_API_KEY")),
+            "sabnzbd_key_from_env": bool(os.getenv("SABNZBD_API_KEY")),
                 "test_spotweb_success": success,
                 "test_spotweb_message": message,
             },
@@ -213,6 +221,8 @@ def save_settings(
                 "settings": settings,
                 "book_count": book_count,
                 "calibre_url": calibre_service.get_base_url(),
+            "spotweb_key_from_env": bool(os.getenv("SPOTWEB_API_KEY")),
+            "sabnzbd_key_from_env": bool(os.getenv("SABNZBD_API_KEY")),
                 "test_calibre_success": success,
                 "test_calibre_message": message,
             },
@@ -255,6 +265,8 @@ def save_settings(
                 "settings": settings,
                 "book_count": book_count,
                 "calibre_url": calibre_service.get_base_url(),
+            "spotweb_key_from_env": bool(os.getenv("SPOTWEB_API_KEY")),
+            "sabnzbd_key_from_env": bool(os.getenv("SABNZBD_API_KEY")),
                 "sync_calibre_success": success,
                 "sync_calibre_message": message,
             },

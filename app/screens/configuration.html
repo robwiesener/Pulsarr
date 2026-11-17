@@ -141,13 +141,23 @@ Configuration - Pulsarr
             id="spotweb_api_key"
             name="spotweb_api_key"
             value=""
-            placeholder="{% if settings.spotweb.api_key %}********{% else %}No API key set{% endif %}"
-            autocomplete="new-password">
+            placeholder="{% if spotweb_key_from_env %}Managed by environment variable{% elif settings.spotweb.api_key %}********{% else %}No API key set{% endif %}"
+            autocomplete="new-password"
+            {% if spotweb_key_from_env %}disabled{% endif %}>
 
+        {% if spotweb_key_from_env %}
+        <div class="form-text text-info">
+            <i class="bi bi-info-circle"></i>
+            This key is set via the <code>SPOTWEB_API_KEY</code> environment
+            variable (e.g. Portainer). To change it, update the env var and
+            restart the container.
+        </div>
+        {% else %}
         <div class="form-text">
             Leave empty to keep the current key.
             Paste a new key to replace it.
         </div>
+        {% endif %}
 
     </div>
 
@@ -224,13 +234,23 @@ Configuration - Pulsarr
             id="sabnzbd_api_key"
             name="sabnzbd_api_key"
             value=""
-            placeholder="{% if settings.sabnzbd.api_key %}********{% else %}No API key set{% endif %}"
-            autocomplete="new-password">
+            placeholder="{% if sabnzbd_key_from_env %}Managed by environment variable{% elif settings.sabnzbd.api_key %}********{% else %}No API key set{% endif %}"
+            autocomplete="new-password"
+            {% if sabnzbd_key_from_env %}disabled{% endif %}>
 
+        {% if sabnzbd_key_from_env %}
+        <div class="form-text text-info">
+            <i class="bi bi-info-circle"></i>
+            This key is set via the <code>SABNZBD_API_KEY</code> environment
+            variable (e.g. Portainer). To change it, update the env var and
+            restart the container.
+        </div>
+        {% else %}
         <div class="form-text">
             Leave empty to keep the current key.
             Paste a new key to replace it.
         </div>
+        {% endif %}
 
     </div>
 
