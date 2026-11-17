@@ -2,6 +2,7 @@ import requests
 
 from app.config.config_service import config_service
 from app.models.enums import DownloadStatus
+from app.security.safe_error import sanitize_exception
 
 class SabnzbdService:
 
@@ -39,7 +40,7 @@ class SabnzbdService:
             return False, "SABnzbd connection failed."
 
         except Exception as exc:
-            return False, str(exc)
+            return False, sanitize_exception(exc)
 
     def add_url(self, download_url: str) -> tuple[bool, str, str | None]:
 
@@ -98,7 +99,7 @@ class SabnzbdService:
 
             return (
                 False,
-                str(exc),
+                sanitize_exception(exc),
                 None,
             )
 
@@ -152,10 +153,10 @@ class SabnzbdService:
 
             print(
                 "SABNZBD QUEUE STATUS ERROR:",
-                exc,
+                sanitize_exception(exc),
             )
 
-            return False, "ERROR", str(exc)
+            return False, "ERROR", sanitize_exception(exc)
 
         # Niet gevonden in queue.
         # Nu de history controleren.
@@ -228,10 +229,10 @@ class SabnzbdService:
 
             print(
                 "SABNZBD HISTORY STATUS ERROR:",
-                exc,
+                sanitize_exception(exc),
             )
 
-            return False, "ERROR", str(exc)
+            return False, "ERROR", sanitize_exception(exc)
 
     def get_download_history(self, nzo_id: str) -> tuple[bool, str]:
 
@@ -275,8 +276,8 @@ class SabnzbdService:
 
         except Exception as exc:
 
-            print("SABNZBD HISTORY ERROR:", exc)
+            print("SABNZBD HISTORY ERROR:", sanitize_exception(exc))
 
-            return False, str(exc)
+            return False, sanitize_exception(exc)
 
 sabnzbd_service = SabnzbdService()

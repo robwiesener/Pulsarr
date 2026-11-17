@@ -47,10 +47,10 @@ def save_settings(
     session: Session = Depends(get_session),
 
     spotweb_url: str = Form(...),
-    spotweb_api_key: str = Form(...),
+    spotweb_api_key: str = Form(default=""),
 
     sabnzbd_url: str = Form(...),
-    sabnzbd_api_key: str = Form(...),
+    sabnzbd_api_key: str = Form(default=""),
     sabnzbd_category: str = Form(...),
 
     download_status_interval: int = Form(...),
@@ -68,11 +68,13 @@ def save_settings(
 
     # Spotweb settings
     settings.spotweb.url = spotweb_url
-    settings.spotweb.api_key = spotweb_api_key
+    if spotweb_api_key.strip():
+        settings.spotweb.api_key = spotweb_api_key
 
     # SABnzbd settings
     settings.sabnzbd.url = sabnzbd_url
-    settings.sabnzbd.api_key = sabnzbd_api_key
+    if sabnzbd_api_key.strip():
+        settings.sabnzbd.api_key = sabnzbd_api_key
     settings.sabnzbd.category = sabnzbd_category
 
     # Background settings

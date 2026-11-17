@@ -10,6 +10,7 @@ from sqlmodel import Session
 from app.config.config_service import config_service
 from app.db.database import engine
 from app.models.spotweb_result import SpotwebResult
+from app.security.safe_error import sanitize_exception
 from app.services.activity_log_service import activity_log_service
 
 
@@ -29,17 +30,6 @@ class SpotwebService:
             )
 
         return url.rstrip("/") + "/api"
-
-    def _safe_error_message(self, exc: Exception) -> str:
-        """Verwijder volledige URL's uit exception-strings.
-
-        Requests-exceptions bevatten doorgaans de request-URL inclusief
-        ?apikey=... . Door de URL te vervangen door <url> voorkomen we
-        dat de API-key in de activity log of de config-UI belandt.
-        """
-        text = str(exc)
-        text = re.sub(r"https?://\S+", "<url>", text)
-        return text
 
     def _parse_xml_response(
         self,
@@ -109,7 +99,7 @@ class SpotwebService:
             return False, "Spotweb connection failed."
 
         except Exception as exc:
-            return False, self._safe_error_message(exc)
+            return False, sanitize_exception(exc)
 
     def fetch_recent_books(
         self,
@@ -139,7 +129,7 @@ class SpotwebService:
                 f"Recent books request failed "
                 f"(offset={offset}, limit={limit})"
             )
-            safe = self._safe_error_message(exc)
+            safe = sanitize_exception(exc)
             print(f"SPOTWEB SERVICE: {message}: {safe}")
             self._log(
                 level="ERROR",
@@ -228,7 +218,7 @@ class SpotwebService:
             response.raise_for_status()
 
         except requests.RequestException as exc:
-            safe = self._safe_error_message(exc)
+            safe = sanitize_exception(exc)
             print(
                 "SPOTWEB SERVICE: "
                 f"Book search request failed "
@@ -268,7 +258,7 @@ class SpotwebService:
             response.raise_for_status()
 
         except requests.RequestException as exc:
-            safe = self._safe_error_message(exc)
+            safe = sanitize_exception(exc)
             print(
                 "SPOTWEB SERVICE: "
                 f"Details request failed "

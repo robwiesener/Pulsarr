@@ -140,7 +140,14 @@ Configuration - Pulsarr
             class="form-control"
             id="spotweb_api_key"
             name="spotweb_api_key"
-            value="{{ settings.spotweb.api_key }}">
+            value=""
+            placeholder="{% if settings.spotweb.api_key %}********{% else %}No API key set{% endif %}"
+            autocomplete="new-password">
+
+        <div class="form-text">
+            Leave empty to keep the current key.
+            Paste a new key to replace it.
+        </div>
 
     </div>
 
@@ -216,7 +223,14 @@ Configuration - Pulsarr
             class="form-control"
             id="sabnzbd_api_key"
             name="sabnzbd_api_key"
-            value="{{ settings.sabnzbd.api_key }}">
+            value=""
+            placeholder="{% if settings.sabnzbd.api_key %}********{% else %}No API key set{% endif %}"
+            autocomplete="new-password">
+
+        <div class="form-text">
+            Leave empty to keep the current key.
+            Paste a new key to replace it.
+        </div>
 
     </div>
 
