@@ -42,9 +42,34 @@ class ConfigService:
             exist_ok=True,
         )
 
+        data = settings.model_dump()
+
+        # Als een API key via env-var is gezet, mag die NOOIT naar
+        # config.json worden geschreven. Behoud de bestaande waarde
+        # uit config.json (of leeg als die er niet was).
+        env_managed = []
+        if os.getenv("SPOTWEB_API_KEY"):
+            env_managed.append(("spotweb", "api_key"))
+        if os.getenv("SABNZBD_API_KEY"):
+            env_managed.append(("sabnzbd", "api_key"))
+
+        if env_managed:
+            existing = {}
+            if CONFIG_FILE.exists():
+                try:
+                    with open(CONFIG_FILE, "r") as f:
+                        existing = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    existing = {}
+
+            for section, field in env_managed:
+                data.setdefault(section, {})[field] = (
+                    existing.get(section, {}).get(field, "")
+                )
+
         with open(CONFIG_FILE, "w") as f:
             json.dump(
-                settings.model_dump(),
+                data,
                 f,
                 indent=4,
             )

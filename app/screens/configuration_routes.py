@@ -60,7 +60,7 @@ def save_settings(
     download_status_interval: int = Form(...),
     wishlist_search_interval: int = Form(...),
     description_search_keywords: str = Form(...),
-    calibre_url: str = Form(...),
+    calibre_url: str = Form(default=""),
 
     action: str = Form(...),
 ):
