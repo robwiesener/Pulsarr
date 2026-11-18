@@ -5,8 +5,10 @@ Double-submit cookie patroon:
 - Client stuurt dezelfde waarde mee via form-veld of header.
 - Server vergelijkt cookie en meegestuurde waarde.
 
-Token is niet geheim (het is een nonce), maar moet per sessie uniek
-zijn. Cookie-instellingen: SameSite=Lax, Secure conditioneel.
+Secure-flag wordt per request bepaald op basis van het werkelijke
+scheme, niet op basis van env-vars. Reden: op LAN HTTP werkt een
+Secure-cookie niet (browser stuurt hem niet terug, JS kan hem niet
+lezen). Alleen HTTPS (direct of via Cloudflare/proxy) krijgt Secure.
 """
 
 import secrets
@@ -29,11 +31,6 @@ def generate_token() -> str:
 
 
 def get_or_create_cookie_token(request: Request) -> tuple[str, bool]:
-    """Return (token, was_created).
-
-    Als de cookie al bestaat, wordt die hergebruikt. Anders wordt een
-    nieuwe token gegenereerd.
-    """
     existing = request.cookies.get(COOKIE_NAME)
     if existing:
         return existing, False
@@ -44,7 +41,6 @@ def extract_submitted_token(
     request: Request,
     body: bytes,
 ) -> str | None:
-    """Haal de meegestuurde token op uit header of form-body."""
     header_value = request.headers.get(HEADER_NAME)
     if header_value:
         return header_value
@@ -75,8 +71,27 @@ def tokens_match(a: str | None, b: str | None) -> bool:
     return secrets.compare_digest(a, b)
 
 
-def cookie_secure() -> bool:
-    """Secure-flag alleen als auth aan staat (dus niet in dev)."""
-    import os
-    disabled = os.getenv("CF_ACCESS_DISABLED", "0") == "1"
-    return not disabled
+def should_set_secure(request: Request) -> bool:
+    """Bepaal Secure-flag op basis van werkelijk scheme.
+
+    - Direct HTTPS                  → True
+    - X-Forwarded-Proto: https       → True (proxy/cloudflared)
+    - Cloudflare (cf-ray aanwezig)   → True (CF termineert TLS)
+    - Anders (LAN HTTP, dev)         → False
+    """
+    if request.url.scheme == "https":
+        return True
+
+    forwarded = (
+        request.headers.get("x-forwarded-proto", "")
+        .lower()
+        .split(",")[0]
+        .strip()
+    )
+    if forwarded == "https":
+        return True
+
+    if request.headers.get("cf-ray"):
+        return True
+
+    return False
